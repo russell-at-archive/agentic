@@ -18,6 +18,7 @@ This document defines the architecture that fills that gap.
 **In scope**: the execution substrate — how agents are launched, isolated, scheduled, observed, and integrated with the existing process framework.
 
 **Not in scope**:
+
 - The internal reasoning loop or prompting strategy of any agent model
 - Final vendor or product selection — those are ADR decisions
 - Agents as long-lived stateful services — workers are ephemeral and disposable
@@ -41,9 +42,11 @@ One bad agent run must not affect unrelated runs. Every boundary between compone
 
 Orchestrators and schedulers carry no in-memory state that cannot be reconstructed from the database. Any control plane instance can be restarted or replaced without losing run state, enabling zero-downtime deployments and resilience to control plane failures.
 
-### 3.4 Immutable Input Bundles
+### 3.4 Implementation Manifest
 
-Before a run starts, the system resolves all planning artifacts — `spec.md`, `plan.md`, `tasks.md`, task context, and configuration — into a versioned, immutable bundle written to object storage. The agent receives a reference to that bundle. Nothing in the bundle changes during the run. Every run is therefore reproducible and free from mid-flight configuration drift.
+The control plane produces a small, immutable JSON implementation manifest containing only what cannot be derived from the repository: the run ID, task ID, target commit SHA, execution class, tool grants, and runtime configuration. Planning artifacts — `spec.md`, `plan.md`, `tasks.md` — are authoritative in the repository and are accessed by cloning the repo at the specified commit SHA.
+
+The manifest is not injected into the container at startup. Instead, once the agent runtime has initialized and cloned the repository, it signals readiness to the orchestrator via an authenticated HTTP request. The orchestrator responds with the manifest JSON and simultaneously transitions the run from `launching` to `running`. This ensures the manifest is handed over only to a confirmed-live agent, and gives the orchestrator a clean cancellation point — a run cancelled before the agent signals ready never receives a manifest and exits without doing any work. Nothing in the manifest changes after it is issued.
 
 ### 3.5 Ephemeral Execution Environments
 
@@ -69,17 +72,17 @@ Multi-step agent workflows decompose into resumable steps with durable checkpoin
 
 ## 4. Architecture Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           Control Plane                             │
 │                                                                     │
-│  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐  ┌──────────┐  │
-│  │ API Service │  │ Orchestrator │  │  Scheduler  │  │  Policy  │  │
-│  │ (REST/gRPC) │  │ (State Mach.)│  │             │  │ Service  │  │
-│  └──────┬──────┘  └──────┬───────┘  └──────┬──────┘  └────┬─────┘  │
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐  ┌──────────┐   │
+│  │ API Service │  │ Orchestrator │  │  Scheduler  │  │  Policy  │   │
+│  │ (REST/gRPC) │  │ (State Mach.)│  │             │  │ Service  │   │
+│  └──────┬──────┘  └──────┬───────┘  └──────┬──────┘  └────┬─────┘   │
 │         │                │                 │              │         │
 │  ┌──────▼────────────────▼─────────────────▼──────────────▼──────┐  │
-│  │                   State Store (PostgreSQL)                     │  │
+│  │                   State Store (PostgreSQL)                    │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────┬──────────────────────────────────┘
                                    │
@@ -104,7 +107,7 @@ Multi-step agent workflows decompose into resumable steps with durable checkpoin
 │  ┌────────────▼─────────────────┐  │                                │
 │  │         Agent Pod            │──┘ emits events / heartbeats      │
 │  │  ┌───────────────────────┐   │                                   │
-│  │  │ init: bundle-fetch    │   │                                   │
+│  │  │ init: repo-clone      │   │                                   │
 │  │  ├───────────────────────┤   │                                   │
 │  │  │ agent runtime         │   │                                   │
 │  │  │ (COW /workspace)      │   │                                   │
@@ -117,27 +120,27 @@ Multi-step agent workflows decompose into resumable steps with durable checkpoin
 └─────────────────────────────────────────────────────────────────────┘
               │
 ┌─────────────▼─────────────────────────────────────────────────────┐
-│                        Persistence Layer                           │
-│                                                                    │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐  │
-│  │ Artifact │ │   Log    │ │ Metrics  │ │  Traces  │ │ Search │  │
-│  │   Store  │ │  Store   │ │  Store   │ │  Store   │ │ Index  │  │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └────────┘  │
+│                        Persistence Layer                          │
+│                                                                   │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐   │
+│  │ Artifact │ │   Log    │ │ Metrics  │ │  Traces  │ │ Search │   │
+│  │   Store  │ │  Store   │ │  Store   │ │  Store   │ │ Index  │   │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └────────┘   │
 └─────────────┬─────────────────────────────────────────────────────┘
               │
 ┌─────────────▼─────────────────────────────────────────────────────┐
-│                     External Integrations                          │
-│                                                                    │
+│                     External Integrations                         │
+│                                                                   │
 │  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────┐    │
 │  │   GitHub     │  │   Graphite   │  │    Spec Resolver      │    │
 │  │  Integration │  │  (PR stacks) │  │  (pre-flight artifact │    │
 │  │  Service     │  │              │  │   validation)         │    │
 │  └──────────────┘  └──────────────┘  └───────────────────────┘    │
-│                                                                    │
-│  ┌───────────────────────────────────────────────────────────┐     │
-│  │  Tool Gateway  (audited proxy for external tool calls)    │     │
-│  └───────────────────────────────────────────────────────────┘     │
-└────────────────────────────────────────────────────────────────────┘
+│                                                                   │
+│  ┌───────────────────────────────────────────────────────────┐    │
+│  │  Tool Gateway  (audited proxy for external tool calls)    │    │
+│  └───────────────────────────────────────────────────────────┘    │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -151,10 +154,11 @@ Multi-step agent workflows decompose into resumable steps with durable checkpoin
 The single entry point for all external callers. Authenticates requests, validates input format, and forwards to the Orchestrator. Stateless — scales horizontally behind a load balancer.
 
 | Endpoint | Purpose |
-|---|---|
+| --- | --- |
 | `POST /runs` | Submit a run |
 | `GET /runs/{id}` | Poll status and metadata |
 | `DELETE /runs/{id}` | Cancel an in-progress run |
+| `GET /runs/{id}/manifest` | Agent readiness handshake — returns implementation manifest, transitions run to `running` |
 | `GET /runs/{id}/artifacts` | Retrieve declared outputs |
 | `GET /runs/{id}/logs` | Stream or retrieve structured logs |
 
@@ -162,7 +166,7 @@ The single entry point for all external callers. Authenticates requests, validat
 
 The core state machine. Owns run lifecycle transitions:
 
-```
+```text
 submitted → validated → scheduled → launching → running → completing → done
                                                          → failed
                                                          → cancelled
@@ -171,9 +175,10 @@ submitted → validated → scheduled → launching → running → completing �
 
 Responsibilities:
 
-- Invokes the Spec Resolver on submission to validate planning artifacts and package the immutable input bundle
+- Invokes the Spec Resolver on submission to validate planning artifacts and produce the implementation manifest
 - Writes run records and state transitions to the State Store (append-only)
 - Publishes lifecycle events to the Event Bus
+- Responds to `GET /runs/{id}/manifest` from the agent — validates the pod's service account token, confirms the run is in `launching` state, transitions to `running`, and returns the manifest JSON; responds with an error if the run has been cancelled or timed out
 - Monitors agent heartbeats — triggers timeout when absent beyond the class threshold
 - Makes retry decisions for transient infrastructure failures; surfaces logical failures as failed runs for human review
 - Tracks checkpoint state for resumable multi-step runs
@@ -199,7 +204,7 @@ Admission checks include:
 
 - Task must have `status:ready` on its GitHub Issue
 - All upstream task dependencies must be `status:done`
-- Input bundle must resolve to valid, approved planning artifacts with no draft state
+- Planning artifacts at the specified commit SHA must be valid and approved with no draft state
 - Required ADRs referenced by the task must exist in `docs/adr/`
 - Execution class must be within the submitting team's quota balance
 - Agent image must be on the approved image allowlist
@@ -209,7 +214,7 @@ Admission checks include:
 
 PostgreSQL. Stores:
 
-- Run records (ID, status, input bundle reference, timestamps, owner, team, execution class)
+- Run records (ID, status, implementation manifest reference, commit SHA, timestamps, owner, team, execution class)
 - Append-only state transition log — never mutated after write
 - Checkpoint records keyed by run ID and step name
 - Artifact manifests declared on completion
@@ -229,7 +234,7 @@ Work dispatch and lifecycle telemetry are deliberately separated into two system
 Durable, ordered, with four priority lanes. Provides at-least-once delivery. Worker Controllers use idempotency keys to prevent double-execution.
 
 | Lane | Purpose | Scale-Up Trigger |
-|---|---|---|
+| --- | --- | --- |
 | `critical` | Escalated or time-sensitive runs | Queue depth > 0 |
 | `standard` | All normal feature work | Queue depth > 5 |
 | `background` | Non-blocking analysis and review sweeps | Queue depth > 10 |
@@ -273,11 +278,10 @@ Responsibilities:
 
 Each run executes in a dedicated isolated pod. The pod contains three containers:
 
-```
+```text
 Pod
-├── init-container: bundle-fetcher
-│     Downloads and validates the immutable input bundle from the artifact store
-│     Unpacks to /workspace/input/ (read-only bind mount for the agent container)
+├── init-container: repo-clone
+│     Clones the target repository at commit_sha to /workspace/repo/
 │
 ├── container: agent
 │     The agent runtime (Claude CLI, Codex CLI, Gemini CLI, or pluggable custom)
@@ -286,6 +290,8 @@ Pod
 │     Writes exclusively to /workspace/ (ephemeral COW overlay)
 │     Credentials injected via mounted secret volumes — not environment variables
 │     Network egress restricted to execution-class allowlist
+│     On startup: calls GET /runs/{id}/manifest with pod service account token
+│     Orchestrator responds with manifest JSON and transitions run to running
 │
 └── sidecar: telemetry-relay
       Tails /workspace/logs/execution.jsonl → ships to log store
@@ -297,7 +303,8 @@ Pod
 
 The agent process has access to:
 
-- `/workspace/input/` — read-only unpacked input bundle
+- Run manifest — delivered as a JSON response body from `GET /runs/{id}/manifest` at startup; never written to disk by the control plane
+- `/workspace/repo/` — read-only repository clone at the specified commit SHA, containing `spec.md`, `plan.md`, `tasks.md`, and all source code
 - `/workspace/` — writable COW overlay; base image provides toolset (git, language runtimes, Graphite CLI); overlay captures only the agent's changes
 - Projected secret volumes scoped to the run — GitHub token, model API key, artifact store credentials
 - Network egress to allowlisted endpoints only
@@ -311,21 +318,21 @@ The agent process does not have access to:
 
 #### Workspace Layout
 
-```
+```text
 /workspace/
-├── input/              (read-only — unpacked input bundle)
-│   ├── task.json       (task ID, acceptance criteria, dependencies)
-│   ├── spec.md
+├── repo/               (read-only — git clone at commit SHA)
+│   ├── spec.md         (planning artifacts authoritative here)
 │   ├── plan.md
 │   ├── tasks.md
-│   └── config.json     (execution class, tool grants, credential refs)
-├── repo/               (git clone of target repository at specified commit SHA)
+│   └── ...             (full repository source tree)
 ├── logs/
 │   └── execution.jsonl (structured JSONL, tailed by telemetry sidecar)
 ├── checkpoints/        (durable step state for resumable execution)
 └── output/
     └── manifest.json   (agent declares all produced artifacts before exit)
 ```
+
+The implementation manifest is not written to disk. It is received as the response body of the agent's readiness call to the orchestrator and held in memory by the agent runtime.
 
 On completion, the workspace manager reads `manifest.json`, validates all declared artifacts exist, pushes them to the artifact store, records artifact references in the State Store, and releases the ephemeral volume.
 
@@ -334,9 +341,9 @@ On completion, the workspace manager reads `manifest.json`, validates all declar
 ### 5.4 Persistence Layer
 
 | Store | Purpose | Technology (Candidate) |
-|---|---|---|
+| --- | --- | --- |
 | Metadata | Run records, transitions, quotas, manifests, checkpoints | PostgreSQL |
-| Artifacts | Input bundles, declared outputs, execution bundles | S3-compatible object storage |
+| Artifacts | Declared run outputs and execution logs | S3-compatible object storage |
 | Logs | Structured log aggregation, queryable by run ID | Loki |
 | Metrics | System and per-run metrics with long-term retention | Prometheus + Thanos |
 | Traces | Distributed traces across control plane and pods | Tempo |
@@ -363,14 +370,14 @@ Validates:
 - Task status on GitHub Issue is `status:ready`
 - All upstream task dependencies are `status:done`
 
-On success, packages the validated artifacts into a versioned input bundle, uploads it to the artifact store, and returns the bundle reference to the Orchestrator.
+On success, produces an implementation manifest and returns it to the Orchestrator. The manifest is small — it contains only what cannot be derived from the repository: run ID, task ID, commit SHA, execution class, tool grants, and runtime configuration. Planning artifacts remain authoritative in the repository at the specified commit SHA.
 
 #### GitHub Integration Service
 
 Listens to the Event Bus and maps run lifecycle events to GitHub actions. Agents do not call the GitHub API directly — all GitHub state changes flow through this service, ensuring that the tracking source of truth remains consistent and that agents cannot update Issue or PR state outside their declared outputs.
 
 | Run Event | GitHub Action |
-|---|---|
+| --- | --- |
 | `run.launched` | Issue label → `status:in-progress` |
 | `run.completed` | PR confirmed open, Issue label → `status:in-review` |
 | `run.failed` | Issue comment with structured failure summary |
@@ -394,7 +401,7 @@ The Tool Gateway is the single enforcement and audit point for all external tool
 
 ## 6. Agent Lifecycle — Full Flow
 
-```
+```text
 1.  Caller submits POST /runs with {task_id, repo, commit_sha, execution_class, config}
 
 2.  API Service authenticates caller → forwards to Policy Service
@@ -403,7 +410,7 @@ The Tool Gateway is the single enforcement and audit point for all external tool
 3.  On admission, Orchestrator invokes Spec Resolver:
     - Fetches spec.md, plan.md, tasks.md at commit_sha
     - Validates task readiness and upstream dependency completion
-    - Packages immutable input bundle → uploads to artifact store → returns bundle_ref
+    - Produces implementation manifest → held in Orchestrator state store
 
 4.  Orchestrator writes run record to PostgreSQL (status: scheduled)
     Publishes run.scheduled to Event Bus
@@ -417,16 +424,24 @@ The Tool Gateway is the single enforcement and audit point for all external tool
         - Resource limits and timeout per execution class
         - Security context (non-root, read-only FS, all capabilities dropped, seccomp)
         - Container runtime per class (containerd or gVisor)
-        - NetworkPolicy (deny-all + class egress allowlist)
+        - NetworkPolicy (deny-all + class egress allowlist including orchestrator internal API)
         - Projected secret volumes (short-lived credentials, scoped to run)
     - Reports pod creation to Orchestrator (status: launching)
 
-7.  init container downloads and validates input bundle → unpacks to /workspace/input/
-
-8.  Agent container starts:
-    - Reads task.json from /workspace/input/
+7.  init container runs:
     - Clones repository at commit_sha to /workspace/repo/
-    - Executes task following implementation process protocol:
+
+8.  Agent container starts and initializes runtime, then calls:
+    GET /runs/{id}/manifest  (authenticated with pod service account token)
+    - Orchestrator validates token, confirms run is still in launching state
+    - Orchestrator transitions run to running, publishes run.launched to Event Bus
+    - Orchestrator responds with manifest JSON (run ID, task ID, commit SHA,
+      execution class, tool grants, runtime config)
+    - If run was cancelled or timed out before this call: orchestrator returns error,
+      agent exits cleanly without doing any work
+
+9.  Agent reads spec.md, plan.md, tasks.md from /workspace/repo/
+    Executes task following implementation process protocol:
         → Create branch t-<##>-<slug>
         → Write failing test for first acceptance criterion   [write checkpoint]
         → Write minimum production code to pass
@@ -438,19 +453,19 @@ The Tool Gateway is the single enforcement and audit point for all external tool
     - Writes manifest.json to /workspace/output/
     - Telemetry sidecar emits heartbeat every 30s throughout
 
-9.  Orchestrator monitors heartbeats and pod phase:
+10. Orchestrator monitors heartbeats and pod phase:
     - Heartbeat absent beyond class timeout → marks run timed_out, kills pod
     - Pod exits 0 → triggers completion flow
     - Pod exits non-zero → evaluates retry policy (transient infra failure: retry up to 2x
       with exponential backoff; logical failure: surface as failed, no retry)
 
-10. On pod exit 0:
+11. On pod exit 0:
     - Workspace manager reads manifest.json, validates declared artifacts, pushes to artifact store
     - Orchestrator marks run done, records artifact refs in PostgreSQL
     - GitHub Integration Service updates Issue to status:in-review, confirms PR open
     - Event Bus receives run.completed
 
-11. Ephemeral COW overlay purged. Secret volumes revoked. AgentRun CRD deleted. Pod terminated.
+12. Ephemeral COW overlay purged. Secret volumes revoked. AgentRun CRD deleted. Pod terminated.
 ```
 
 ---
@@ -476,7 +491,7 @@ seccompProfile:
 ### Container Runtime
 
 | Execution Class | Runtime | Rationale |
-|---|---|---|
+| --- | --- | --- |
 | nano, small, medium, large, gpu | containerd | Standard isolation, lower cold-start latency |
 | secure | gVisor (runsc) | Syscall-level kernel sandboxing; enables syscall audit stream |
 
@@ -489,12 +504,12 @@ Teams or the Policy Service may escalate any run to `secure`. The default for al
 Each pod operates under deny-all ingress and deny-all egress as the baseline. Egress allowances are granted per execution class:
 
 | Class | Allowed Egress |
-|---|---|
-| `restricted` | Model API only |
-| `standard` | Model API, GitHub API, artifact store, Tool Gateway |
+| --- | --- |
+| `restricted` | Orchestrator internal API, model API only |
+| `standard` | Orchestrator internal API, model API, GitHub API, artifact store, Tool Gateway |
 | `extended` | Above + package registries (npm, pip, crates.io) |
 
-Egress is enforced at the Kubernetes NetworkPolicy level — no in-process configuration can override it. External tool calls route through the Tool Gateway regardless of execution class.
+Egress is enforced at the Kubernetes NetworkPolicy level — no in-process configuration can override it. All execution classes include egress to the orchestrator's internal cluster endpoint, which is used exclusively for the readiness handshake and heartbeats. External tool calls route through the Tool Gateway regardless of execution class.
 
 ### Credential Isolation
 
@@ -502,7 +517,7 @@ Credentials are injected as projected Kubernetes secret volumes, not as environm
 
 ### Namespace Topology
 
-```
+```text
 archive-control-plane    — API Service, Orchestrator, Scheduler, Policy Service
 archive-workers-prod     — Production agent pods
 archive-workers-staging  — Staging and development agent pods
@@ -516,7 +531,7 @@ Resource quotas are enforced at the namespace level. A burst of agent runs canno
 ## 8. Execution Classes
 
 | Class | CPU | Memory | Storage | Timeout | Runtime | Use Case |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | `nano` | 0.1 | 256 MB | 1 GB | 5 min | containerd | Metadata operations, status checks |
 | `small` | 0.5 | 1 GB | 5 GB | 30 min | containerd | Simple bug fixes, isolated changes |
 | `medium` | 2.0 | 4 GB | 20 GB | 2 hr | containerd | Standard implementation tasks (default) |
@@ -539,7 +554,7 @@ All control plane services — API, Orchestrator, Scheduler, Policy Service — 
 Worker capacity is driven by queue depth using KEDA (Kubernetes Event-Driven Autoscaling). Each priority lane scales independently:
 
 | Lane | Min | Max | Scale-Up Trigger |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | critical | 1 | 20 | queue depth > 0 |
 | standard | 2 | 100 | queue depth > 5 |
 | background | 0 | 20 | queue depth > 10 |
@@ -611,7 +626,7 @@ When the `secure` execution class is active, the telemetry sidecar also captures
 ### Metrics
 
 | Metric | Type | Labels |
-|---|---|---|
+| --- | --- | --- |
 | `agentic_runs_total` | Counter | status, team, execution_class |
 | `agentic_run_duration_seconds` | Histogram | execution_class, status |
 | `agentic_queue_depth` | Gauge | lane |
@@ -641,7 +656,7 @@ A canonical Grafana dashboard per environment exposes:
 ### Alerts
 
 | Alert | Condition | Severity |
-|---|---|---|
+| --- | --- | --- |
 | DLQ non-empty | DLQ depth > 0 for 5 min | Warning |
 | High failure rate | > 10% of runs failed in 15 min | Critical |
 | Queue saturation | Standard lane depth > 50 for 10 min | Warning |
@@ -675,7 +690,7 @@ A review agent is submitted as a distinct run type. Its input bundle includes th
 ## 13. Security Model
 
 | Layer | Control |
-|---|---|
+| --- | --- |
 | Container | Non-root, read-only FS, all capabilities dropped, seccomp RuntimeDefault |
 | Runtime | containerd by default; gVisor for `secure` execution class |
 | Syscall audit | gVisor audit stream captured by telemetry sidecar for `secure` class runs |
@@ -695,7 +710,7 @@ A review agent is submitted as a distinct run type. Its input bundle includes th
 Candidate recommendations, not decisions. Each requires ADR ratification before adoption.
 
 | Concern | Candidate | Rationale |
-|---|---|---|
+| --- | --- | --- |
 | Container orchestration | Kubernetes (EKS or GKE) | Mature ecosystem, KEDA and operator support |
 | Container runtime (default) | containerd | Default for EKS/GKE, stable, well-supported |
 | Container runtime (secure class) | gVisor (runsc) | Syscall-level sandboxing, audit stream, no full VM overhead |
@@ -789,7 +804,7 @@ ADRs required: ADR-014 through ADR-016.
 All decisions below must be resolved as ADRs in `docs/adr/` before their associated phase begins. No component implementation may proceed without its governing ADR.
 
 | # | Decision | Options | Phase |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | ADR-001 | Compute substrate and cloud provider | EKS, GKE, self-hosted | 1 |
 | ADR-002 | Container runtime strategy | containerd + gVisor for secure class; gVisor for all runs | 1 |
 | ADR-003 | Message queue and event bus | NATS JetStream, Kafka, AWS SQS + SNS | 1 |
@@ -815,19 +830,17 @@ These must be answered before or during Phase 1 planning:
 
 1. **Agent runtime selection**: Which runtimes are supported at launch — Claude CLI only, or also Codex, Gemini, custom? Does the execution plane enforce a single runtime or support a pluggable interface?
 
-2. **Repository access model**: Does each pod clone the repository directly via Git, or does the input bundle include a pre-cloned snapshot? Git clone is simpler; a pre-cloned snapshot is more reproducible and reduces pod startup time.
+2. **Run triggering in Phase 1**: Manual API submission only, or also a GitHub App webhook when an Issue moves to `status:ready`?
 
-3. **Run triggering in Phase 1**: Manual API submission only, or also a GitHub App webhook when an Issue moves to `status:ready`?
+3. **Human approval gate**: Should any run type require explicit human approval before the Scheduler dispatches it? If yes, where is the gate enforced and what is the approval mechanism?
 
-4. **Human approval gate**: Should any run type require explicit human approval before the Scheduler dispatches it? If yes, where is the gate enforced and what is the approval mechanism?
+4. **Retention policy**: How long are run records, logs, and artifacts retained? Does the policy differ by execution class or team? What triggers deletion?
 
-5. **Retention policy**: How long are run records, logs, and artifacts retained? Does the policy differ by execution class or team? What triggers deletion?
+5. **Model API cost isolation**: How are model API inference costs attributed per run? Is there a per-run budget cap, and does the Policy Service enforce it at admission time?
 
-6. **Model API cost isolation**: How are model API inference costs attributed per run? Is there a per-run budget cap, and does the Policy Service enforce it at admission time?
+6. **Local development mode**: How do engineers run the system locally without a full Kubernetes cluster? Is there a Docker Compose or equivalent local mode?
 
-7. **Local development mode**: How do engineers run the system locally without a full Kubernetes cluster? Is there a Docker Compose or equivalent local mode?
-
-8. **Agent runtime trust boundary**: Is the primary concern that an agent is exploited by malicious external input, or that the agent itself behaves adversarially? The answer shapes whether gVisor-by-default is warranted beyond the `secure` class.
+7. **Agent runtime trust boundary**: Is the primary concern that an agent is exploited by malicious external input, or that the agent itself behaves adversarially? The answer shapes whether gVisor-by-default is warranted beyond the `secure` class.
 
 ---
 

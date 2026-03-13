@@ -1,25 +1,23 @@
 # ArchiveResale Agentic Harness
 
-defining the sytem for largely autonomous agentic software development
+Defining a sytem for largely autonomous agentic software development at scale.
 
-## Planning
+## Architecture
 
-see @planning-process.md
+see @docs/architecture.md
 
-## Task Tracking
+## Planning Process
 
-see @tracking-process.md
+see @docs/planning-process.md
 
-## Feature Development
+## Task Tracking Process
 
-see @implementation-process.md
+see @docs/tracking-process.md
 
-## Review
+## Feature Development Process
 
-see @review-process.md
+see @docs/implementation-process.md
 
+## Review Process
 
-## Deployment
-
-plan proposal TBD
-
+see @docs/review-process.md
