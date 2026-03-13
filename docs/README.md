@@ -16,7 +16,8 @@ see @implementation-process.md
 
 ## Review
 
-plan proposal TBD
+see @review-process.md
+
 
 ## Deployment
 
