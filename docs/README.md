@@ -8,7 +8,7 @@ see @planning-process.md
 
 ## Task Tracking
 
-plan proposal TBD
+see @tracking-process.md
 
 ## Feature Development
 
