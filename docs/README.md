@@ -12,7 +12,7 @@ see @tracking-process.md
 
 ## Feature Development
 
-plan proposal TBD
+see @implementation-process.md
 
 ## Review
 
