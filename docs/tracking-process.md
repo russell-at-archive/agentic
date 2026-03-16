@@ -166,9 +166,9 @@ level. State names must match exactly.
 | `In Review` | Technical Lead | Review | Graphite stack published; Technical Lead reviewing | Review complete |
 | `Done` | Director | Complete | PR merged; evidence attached; Director confirms rollup | None |
 
-`Blocked` is a returnable interruption state. It may be entered from
-`Planning`, `Selected`, `In Progress`, or `In Review`. On resolution, the
-issue returns to the state it held before entering `Blocked`.
+`Blocked` is a returnable interruption state. It may be entered from any
+active state. On resolution, the issue returns to the state it held before
+entering `Blocked`.
 
 A task may never move from `Blocked` directly to `Done`.
 
@@ -564,6 +564,12 @@ is executed and governed.
 - Graphite stacked PRs carry implementation and review discussion.
 - GitHub is the canonical merge destination.
 - Evidence closes the loop between plan and delivery.
+
+## Open Questions
+
+See [docs/open-questions.md](open-questions.md) for the consolidated
+and deduplicated question backlog. Questions originating here are tracked as OQ-12,
+OQ-20, OQ-21, OQ-24, OQ-25, OQ-26, OQ-32.
 
 The eight gate rules enforce the conditions for each transition. The nine
 workflow states make progress visible and queryable across the team. The agent

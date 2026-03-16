@@ -151,7 +151,7 @@ Gate:
 - The specification passes the quality checklist.
 - No critical ambiguity remains.
 - No unresolved clarification markers remain.
-- The spec is approved by the tech lead.
+- The spec is approved by a human reviewer.
 
 ### Phase 3: Planning
 
@@ -194,7 +194,7 @@ Gate:
 
 - All planning ambiguities are resolved.
 - The Constitution Check passes or approved exceptions are documented.
-- The plan is approved by the tech lead.
+- The plan is approved by a human reviewer.
 
 ### Phase 4: Task Decomposition
 
@@ -268,9 +268,9 @@ Review must verify:
 | Gate | Condition |
 | --- | --- |
 | 1 | Intake and classification completed |
-| 2 | `spec.md` approved by tech lead |
+| 2 | `spec.md` approved by human reviewer |
 | 3 | Critical ambiguity resolved |
-| 4 | `plan.md` approved by tech lead |
+| 4 | `plan.md` approved by human reviewer |
 | 5 | `tasks.md` complete and sequenced, and `/speckit.analyze` passes |
 | 6 | Implementation begins |
 | 7 | Review verifies traceability back to spec, plan, and task |
@@ -320,12 +320,9 @@ thresholds.
 
 ## Open Questions
 
-- What is the size threshold below which a spec is optional?
-- Who has authority to approve the Constitution and merge Constitution updates?
-- Should `/speckit.taskstoissues` be used for every feature or only sprint
-  planned work?
-- Should tests be mandatory for MVP tasks even if templates currently mark some
-  tests as optional?
+See [docs/open-questions.md](open-questions.md) for the consolidated
+and deduplicated question backlog. Questions originating here are tracked as OQ-01,
+OQ-10, OQ-16, OQ-17.
 
 ## Repo-Specific Next Steps
 

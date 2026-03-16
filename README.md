@@ -2,6 +2,10 @@
 
 Defining an agentic harness for largely autonomous agentic software development at scale.
 
+## Agentic Team
+
+see @docs/agentic-team.md
+
 ## Planning Process
 
 see @docs/planning-process.md

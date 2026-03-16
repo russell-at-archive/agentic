@@ -540,3 +540,9 @@ Review is complete only when:
 
 If review ends with uncertainty that cannot be named, the review was not deep
 enough.
+
+## Open Questions
+
+See [docs/open-questions.md](open-questions.md) for the consolidated
+and deduplicated question backlog. Questions originating here are tracked as OQ-25,
+OQ-26, OQ-27, OQ-28, OQ-32.

@@ -391,29 +391,6 @@ linked in the relevant Linear issue.
 
 ---
 
-### 7. Metrics Reporter
-
-**Mission**: Measure delivery performance and surface process quality signals.
-
-**Entry state**: Scheduled (not state-driven). Runs on a daily and weekly
-cadence.
-
-**Responsibilities**:
-
-- Collect and publish the five core metrics (see Observability and Metrics).
-- Produce a daily operational summary and a weekly quality and throughput
-  review.
-- Flag anomalies: agent failure rate spikes, review latency increases, rising
-  reopen rates.
-- Read-only access to all systems. No write access except to the reporting
-  destination.
-
-**Model**: Low reasoning effort. Data aggregation and formatting.
-
-**Tools**: Linear API (read), GitHub API (read), reporting destination (write).
-
----
-
 ## Linear State Machine
 
 Canonical nine-state model. State names must match exactly.
@@ -548,35 +525,12 @@ tasks do.
 
 ---
 
-## Observability and Metrics
-
-**Core metrics** (tracked per ticket and per agent role):
-
-| Metric | Description |
-| --- | --- |
-| Lead time | `Selected` to `Done` |
-| Review latency | `In Review` to verdict decision |
-| Reopen rate | `In Review` → `In Progress` frequency per ticket |
-| Defect escape rate | Defects reported after `Done` |
-| Agent failure rate | Failed agent sessions and retry counts |
-
-**Reporting cadence**:
-
-- Daily: operational dashboard (current WIP, blocked issues, review queue depth)
-- Weekly: quality and throughput review (lead time trends, reopen rate, defect
-  escapes, agent failure patterns)
-
-Do not optimize for comment count or action count. Optimize for defect detection
-and flow completion rate.
-
----
-
 ## Tool Assignments and Access Boundaries
 
 | Tool | Agents With Access | Access Level |
 | --- | --- | --- |
-| Linear API | Director, Architect, Coordinator, Engineer, Technical Lead, Metrics Reporter | Director, Architect, Coordinator, Engineer, Tech Lead: read+write; Metrics Reporter: read only |
-| GitHub (read) | Architect, Engineer, Technical Lead, Explorer, Metrics Reporter | Read |
+| Linear API | Director, Architect, Coordinator, Engineer, Technical Lead | Director, Architect, Coordinator, Engineer, Tech Lead: read+write |
+| GitHub (read) | Architect, Engineer, Technical Lead, Explorer | Read |
 | GitHub (write: PR, review, merge) | Architect (plan PR), Engineer (implementation PR), Technical Lead (review + approve) | Scoped write |
 | GitHub Speckit | Architect | Full |
 | Graphite CLI | Engineer (create, submit), Technical Lead (review, approve) | Scoped |
@@ -590,11 +544,10 @@ and flow completion rate.
 - Engineer may not submit a PR that has not passed the full local validation
   pass.
 - Director may pause all agent dispatch for incident containment.
-- Metrics Reporter has read-only access to all systems.
 
 ---
 
-## Gaps Resolved from docs/design.md
+## Gaps Resolved
 
 | # | Gap | Resolution |
 | --- | --- | --- |
@@ -611,9 +564,8 @@ and flow completion rate.
 | 11 | Engineer worktree lifecycle undefined | Create at start, retain through merge, clean up after merge |
 | 12 | No concurrency or locking model | Ticket lock + branch namespace lock with Director recovery |
 | 13 | No failure recovery procedures | Specific recovery actions per failure type defined |
-| 14 | No observability or metrics | Five core metrics, daily + weekly reporting cadence |
 | 15 | No phased rollout | Four-phase rollout defined |
-| 16 | No cross-cutting enforcement mechanism | Compliance Gate sub-function; Metrics Reporter support agent |
+| 16 | No cross-cutting enforcement mechanism | Compliance Gate sub-function |
 | 17 | Codex pipeline vs. Director relationship undefined | Codex pipeline is per-session internal substrate; Director is system-level orchestrator |
 | 18 | tracking-process.md uses Linear; implementation-process.md referenced GitHub Issues | Canonical tracker is Linear; implementation-process.md has been aligned to match |
 | 19 | AWS tool has no assigned agent | Unresolved; requires product decision (see Open Questions) |
@@ -663,7 +615,6 @@ The following decisions must be elevated to ADRs before implementation begins.
 ### Phase 4 — Resilience and optimization
 
 - Implement lock-reconciliation in the Director.
-- Add Metrics Reporter.
 - Tune failure recovery (backoff, stack repair, incident containment).
 - Run a full end-to-end pilot on a real feature and calibrate based on outcomes.
 
@@ -705,37 +656,6 @@ Linear team configuration with exact name matching. Add the four type labels
 
 ## Open Questions
 
-The following questions remain unresolved and should be addressed during Phase
-1 governance work.
-
-1. **AWS scope**: Which AWS operations are agents expected to perform —
-   infrastructure provisioning, secrets retrieval, deployment? Which agent owns
-   these operations?
-
-2. **Plan review authority**: Which role has final authority to approve the plan
-   PR in `Plan Review`? Is it always a human? Can the Technical Lead serve as
-   the plan reviewer in addition to the code reviewer?
-
-3. **Parallel Engineers**: Can multiple Engineer agents work simultaneously on
-   independent tasks within the same feature? If so, what is the worktree and
-   branch naming policy, and how are lock conflicts handled?
-
-4. **Maximum Graphite stack depth**: What is the maximum allowed PR stack depth
-   before a forced split is required? The current guidance is three to four
-   frames as a soft cap.
-
-5. **TDD exceptions**: What is the approved procedure when TDD is not
-   technically feasible (e.g., pure infrastructure tasks)? Who approves the
-   exception and where is it documented?
-
-6. **CI vs. local validation**: What is the policy when local validation passes
-   but CI fails due to environment differences? Is CI failure a blocker on
-   merge independent of local validation?
-
-7. **Intake / triage**: Who creates the initial `Draft` Linear issue? A human
-   today. Should a future Triage agent handle intake classification and Draft
-   issue creation from a raw request? This is a Phase 4 consideration.
-
-8. **Director as daemon vs. scheduled job**: Daemon offers lower latency;
-   scheduled job is simpler to operate and audit. The choice affects
-   infrastructure requirements and failure surface area.
+See [docs/open-questions.md](open-questions.md) for the consolidated
+and deduplicated question backlog. Questions originating here are tracked as OQ-04,
+OQ-05, OQ-06, OQ-08, OQ-09, OQ-13, OQ-18, OQ-19, OQ-24, OQ-29, OQ-30, OQ-31.

@@ -393,18 +393,6 @@ Exceptions are visible in the issue and pull request. They are never implied.
 
 ## Open Questions
 
-The following questions must be resolved before this process is adopted as
-the repository standard:
-
-1. What is the canonical local validation command for this repository? It
-   should be defined in the project `Makefile` or equivalent and referenced
-   here explicitly.
-2. Are coverage thresholds enforced as part of the local validation gate, or
-   is a passing suite sufficient?
-3. Should Graphite stack names follow a naming convention tied to the feature
-   or spec identifier (e.g., `spec-###-<slug>`)?
-4. What is the policy for tasks that genuinely cannot follow TDD at the unit
-   level — for example, pure infrastructure tasks? Should acceptance tests
-   substitute, and who approves the exception?
-5. Who has authority to approve exceptions to this process, and is that
-   approval recorded in the issue or the PR?
+See [docs/open-questions.md](open-questions.md) for the consolidated
+and deduplicated question backlog. Questions originating here are tracked as OQ-07,
+OQ-14, OQ-15, OQ-18, OQ-19, OQ-26.
