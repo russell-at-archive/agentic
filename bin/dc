@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+WORKSPACE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+usage() {
+  cat >&2 <<EOF
+Usage: dc <command>
+
+Commands:
+  build     Build the devcontainer image
+  up        Start the devcontainer (build if needed)
+  exec      Open a shell inside the running devcontainer
+  down      Stop and remove the devcontainer
+  rebuild   Force a clean rebuild (stop, remove image, start)
+  help      Show this help message
+EOF
+}
+
+cmd_build() {
+  devcontainer build --workspace-folder "${WORKSPACE_ROOT}"
+}
+
+cmd_up() {
+  devcontainer up --workspace-folder "${WORKSPACE_ROOT}"
+}
+
+cmd_exec() {
+  devcontainer exec --workspace-folder "${WORKSPACE_ROOT}" bash
+}
+
+cmd_down() {
+  docker rm -f archive-agentic 2>/dev/null || true
+}
+
+cmd_rebuild() {
+  cmd_down
+  docker rmi archive-agentic 2>/dev/null || true
+  cmd_up
+}
+
+main() {
+  local command="${1:-help}"
+
+  case "${command}" in
+    build)   cmd_build   ;;
+    up)      cmd_up      ;;
+    exec)    cmd_exec    ;;
+    down)    cmd_down    ;;
+    rebuild) cmd_rebuild ;;
+    help|--help|-h) usage ;;
+    *)
+      echo "dc: unknown command '${command}'" >&2
+      usage
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

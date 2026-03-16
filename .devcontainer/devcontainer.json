@@ -1,0 +1,79 @@
+{
+  "name": "archive-agentic",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  // Mount host config repos for each AI coding tool so credentials
+  // and settings are available without being committed to the image.
+  "mounts": [
+    // Shared Agents directory
+    {
+      "source": "${localEnv:HOME}/.agents",
+      "target": "/home/vscode/.agents",
+      "type": "bind"
+    },
+    // Claude Code
+    {
+      "source": "${localEnv:HOME}/.claude",
+      "target": "/home/vscode/.claude",
+      "type": "bind"
+    },
+    {
+      "source": "${localEnv:HOME}/.claude.json",
+      "target": "/home/vscode/.claude.json",
+      "type": "bind"
+    },
+    // Codex (OpenAI)
+    {
+      "source": "${localEnv:HOME}/.codex",
+      "target": "/home/vscode/.codex",
+      "type": "bind"
+    },
+    // Gemini (Google)
+    {
+      "source": "${localEnv:HOME}/.gemini",
+      "target": "/home/vscode/.gemini",
+      "type": "bind"
+    },
+    // Pi (@mariozechner/pi-coding-agent)
+    {
+      "source": "${localEnv:HOME}/.pi",
+      "target": "/home/vscode/.pi",
+      "type": "bind"
+    },
+    // AWS credentials and config
+    {
+      "source": "${localEnv:HOME}/.aws",
+      "target": "/home/vscode/.aws",
+      "type": "bind"
+    },
+    // SSH keys and config
+    {
+      "source": "${localEnv:HOME}/.ssh",
+      "target": "/home/vscode/.ssh",
+      "type": "bind",
+      "options": "readonly"
+    }
+  ],
+
+  // Forward ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY from host
+  // if they are set as environment variables (not in a file).
+  "containerEnv": {
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+    "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}",
+    "GEMINI_API_KEY": "${localEnv:GEMINI_API_KEY}"
+  },
+
+  "remoteUser": "vscode",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "github.copilot",
+        "ms-python.python",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  }
+}

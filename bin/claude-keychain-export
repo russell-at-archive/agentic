@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Extracts Claude Code OAuth credentials from the macOS Keychain and writes
+# them to ~/.claude/.credentials.json so Linux containers can access your OAuth token.
+
+KEYCHAIN_SERVICE="Claude Code-credentials"
+KEYCHAIN_ACCOUNT="$(whoami)"
+CREDENTIALS_FILE="${HOME}/.claude/.credentials.json"
+
+if [[ "$(uname)" != "Darwin" ]]; then
+  echo "error: this script is for macOS only" >&2
+  exit 1
+fi
+
+credentials="$(security find-generic-password \
+  -s "$KEYCHAIN_SERVICE" \
+  -a "$KEYCHAIN_ACCOUNT" \
+  -w 2>/dev/null)" || {
+  echo "error: no Claude Code credentials found in keychain" >&2
+  echo "       run 'claude' and log in first" >&2
+  exit 1
+}
+
+mkdir -p "$(dirname "$CREDENTIALS_FILE")"
+printf '%s' "$credentials" > "$CREDENTIALS_FILE"
+chmod 600 "$CREDENTIALS_FILE"
+
+echo "credentials written to $CREDENTIALS_FILE"
