@@ -1,10 +1,6 @@
 # ArchiveResale Agentic Harness
 
-Defining a sytem for largely autonomous agentic software development at scale.
-
-## Architecture
-
-see @docs/architecture.md
+Defining an agentic harness for largely autonomous agentic software development at scale.
 
 ## Planning Process
 
