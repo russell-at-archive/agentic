@@ -459,6 +459,7 @@ from `Blocked` directly to `Done`.
 Required artifacts per phase:
 
 **Planning bundle** (`specs/<###-feature-name>/`):
+
 - `spec.md` — behavior, scope, acceptance criteria
 - `plan.md` — implementation approach, constraints, validation strategy
 - `tasks.md` — ordered, independently reviewable task breakdown
@@ -466,21 +467,25 @@ Required artifacts per phase:
 - ADR links or new ADRs for architectural decisions
 
 **Scheduling bundle** (in Linear):
+
 - One issue per task with task ID, title, dependency links, acceptance criteria
   summary, required tests summary, parent artifact links
 
 **Implementation bundle** (in PR and Linear issue):
+
 - Branch name and worktree metadata
 - Graphite stack URL
 - Test and validation pass output
 - Commit history referencing task ID and Linear ID
 
 **Review bundle** (in PR review):
+
 - Four-tier review completion
 - Findings ordered by severity with file references
 - Verdict: `reject`, `revise`, or `approve`
 
 **Research bundle** (`specs/<###>/research.md` or linked artifact):
+
 - Problem, constraints, affected areas, unknowns resolved, risks, directions,
   sources
 
@@ -561,6 +566,7 @@ tasks do.
 | Agent failure rate | Failed agent sessions and retry counts |
 
 **Reporting cadence**:
+
 - Daily: operational dashboard (current WIP, blocked issues, review queue depth)
 - Weekly: quality and throughput review (lead time trends, reopen rate, defect
   escapes, agent failure patterns)
@@ -639,24 +645,28 @@ The following decisions must be elevated to ADRs before implementation begins.
 
 ## Phased Rollout
 
-**Phase 1 — Governance and artifacts**
+### Phase 1 — Governance and artifacts
+
 - Ratify the Constitution (`.specify/memory/constitution.md`).
 - Finalize role contracts, state machine, and artifact templates.
 - Create the ADR backlog above.
 - Adopt this document as the project standard through an ADR.
 
-**Phase 2 — Scheduling and planning automation**
+### Phase 2 — Scheduling and planning automation
+
 - Implement Director (polling, dispatch table, Compliance Gate).
 - Implement Architect (Speckit integration, plan PR workflow).
 - Implement Coordinator (issue creation, dependency linking, progressive
   promotion).
 
-**Phase 3 — Engineering and review automation**
+### Phase 3 — Engineering and review automation
+
 - Implement Engineer (worktree, TDD loop, Graphite integration, validation pass).
 - Implement Technical Lead (four-tier review, verdict model, PR approval).
 - Add lock acquisition and release to the Engineer workflow.
 
-**Phase 4 — Resilience and optimization**
+### Phase 4 — Resilience and optimization
+
 - Implement lock-reconciliation in the Director.
 - Add Metrics Reporter.
 - Tune failure recovery (backoff, stack repair, incident containment).
@@ -681,6 +691,7 @@ reference this command. Without it, the "full local validation pass" gate
 cannot be enforced consistently.
 
 **Add PR templates**: Update GitHub PR templates to include required sections:
+
 - Traceability (links to `spec.md`, `plan.md`, `tasks.md`, Linear issue)
 - Validation evidence (test output or CI link)
 - Deviation disclosure (any departure from the approved plan)
