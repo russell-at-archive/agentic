@@ -2,8 +2,6 @@
 
 **Date**: 2026-03-16
 **Status**: Draft — pending human review and ADR elevation for flagged decisions
-**Synthesized from**: `docs/claude/team-proposal.md`, `docs/codex/team-proposal.md`,
-`docs/gemini/team-proposal.md`
 
 ---
 
@@ -15,10 +13,6 @@ quality gates, concurrency semantics, failure recovery, and observability for a
 system in which agents plan, schedule, implement, review, and report software
 work with Linear as the system of record, GitHub as source control, and
 Graphite for stacked pull requests.
-
-This document is the authoritative synthesis of three independent team
-proposals. Conflicts between those proposals are resolved here with explicit
-rationale.
 
 ---
 
@@ -245,7 +239,8 @@ and stop.
 2. Move the issue to `In Progress`.
 3. Acquire a ticket lock (see Concurrency and Locking).
 4. Create a git worktree for isolated development.
-5. Create the branch: `gt create t-<##>-<short-slug>`. Stack on the upstream
+5. Create the branch:
+   `gt create <linear-id>-t-<##>-<short-slug>`. Stack on the upstream
    branch when this task has a direct code dependency on upstream output.
 6. Update the Linear issue with the branch name.
 7. For each acceptance criterion: write a failing test (confirm it fails for
@@ -262,7 +257,7 @@ and stop.
 
 **Commit message format**: `<type>(<scope>): <short description> (T-##, <LINEAR-ID>)`
 
-**Branch name format**: `t-<##>-<short-slug>`
+**Branch name format**: `<linear-id>-t-<##>-<short-slug>`
 
 **Worktree lifecycle**: Create at task start. Retain until the PR merges. Clean
 up after merge. On task rejection requiring a restart, recreate the worktree.
@@ -620,7 +615,7 @@ and flow completion rate.
 | 15 | No phased rollout | Four-phase rollout defined |
 | 16 | No cross-cutting enforcement mechanism | Compliance Gate sub-function; Metrics Reporter support agent |
 | 17 | Codex pipeline vs. Director relationship undefined | Codex pipeline is per-session internal substrate; Director is system-level orchestrator |
-| 18 | tracking-process.md uses Linear; implementation-process.md references GitHub Issues | Canonical tracker is Linear; implementation-process.md should be updated to match |
+| 18 | tracking-process.md uses Linear; implementation-process.md referenced GitHub Issues | Canonical tracker is Linear; implementation-process.md has been aligned to match |
 | 19 | AWS tool has no assigned agent | Unresolved; requires product decision (see Open Questions) |
 
 ---

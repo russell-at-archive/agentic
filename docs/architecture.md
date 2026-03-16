@@ -7,7 +7,7 @@
 
 ## 1. Problem Statement
 
-The process framework defined in this repository expects agents to execute approved tasks autonomously: create branches, write code following TDD, commit, open pull requests, update GitHub Issues, and produce reviewable outputs. The current gap is a missing execution substrate. No system exists to launch agents, isolate them from one another, manage their lifecycle, persist their outputs, or give operators visibility into what is happening.
+The process framework defined in this repository expects agents to execute approved tasks autonomously: create branches, write code following TDD, commit, open pull requests, update Linear issues, and produce reviewable outputs. The current gap is a missing execution substrate. No system exists to launch agents, isolate them from one another, manage their lifecycle, persist their outputs, or give operators visibility into what is happening.
 
 This document defines the architecture that fills that gap.
 
@@ -202,8 +202,8 @@ The admission and guardrail layer. Every run request passes through the Policy S
 
 Admission checks include:
 
-- Task must have `status:ready` on its GitHub Issue
-- All upstream task dependencies must be `status:done`
+- Task must be in `Selected` state on its Linear issue
+- All upstream task dependencies must be `Done`
 - Planning artifacts at the specified commit SHA must be valid and approved with no draft state
 - Required ADRs referenced by the task must exist in `docs/adr/`
 - Execution class must be within the submitting team's quota balance
@@ -367,8 +367,8 @@ Validates:
 - `plan.md` exists and references the spec
 - `tasks.md` contains the requested task with explicit acceptance criteria and required tests listed
 - All ADRs referenced by the task exist in `docs/adr/`
-- Task status on GitHub Issue is `status:ready`
-- All upstream task dependencies are `status:done`
+- Task state on Linear issue is `Selected`
+- All upstream task dependencies are `Done`
 
 On success, produces an implementation manifest and returns it to the Orchestrator. The manifest is small — it contains only what cannot be derived from the repository: run ID, task ID, commit SHA, execution class, tool grants, and runtime configuration. Planning artifacts remain authoritative in the repository at the specified commit SHA.
 
@@ -378,11 +378,11 @@ Listens to the Event Bus and maps run lifecycle events to GitHub actions. Agents
 
 | Run Event | GitHub Action |
 | --- | --- |
-| `run.launched` | Issue label → `status:in-progress` |
-| `run.completed` | PR confirmed open, Issue label → `status:in-review` |
+| `run.launched` | Linear issue state → `In Progress` |
+| `run.completed` | PR confirmed open, Linear issue state → `In Review` |
 | `run.failed` | Issue comment with structured failure summary |
-| `run.cancelled` | Issue comment, label reverted to `status:ready` |
-| `run.timed_out` | Issue comment, label set to `status:blocked` |
+| `run.cancelled` | Issue comment, state reverted to `Selected` |
+| `run.timed_out` | Issue comment, state set to `Blocked` |
 
 Uses a GitHub App with minimum required scopes, scoped per repository.
 
@@ -442,11 +442,11 @@ The Tool Gateway is the single enforcement and audit point for all external tool
 
 9.  Agent reads spec.md, plan.md, tasks.md from /workspace/repo/
     Executes task following implementation process protocol:
-        → Create branch t-<##>-<slug>
+        → Create branch <linear-id>-t-<##>-<slug>
         → Write failing test for first acceptance criterion   [write checkpoint]
         → Write minimum production code to pass
         → Refactor without changing behavior
-        → Commit: <type>(<scope>): <description> (T-##)       [write checkpoint]
+        → Commit: <type>(<scope>): <description> (T-##, <LINEAR-ID>) [write checkpoint]
         → Repeat TDD cycle for each acceptance criterion
         → Push branch                                          [write checkpoint]
         → Open PR via Graphite                                 [write checkpoint]
@@ -462,7 +462,7 @@ The Tool Gateway is the single enforcement and audit point for all external tool
 11. On pod exit 0:
     - Workspace manager reads manifest.json, validates declared artifacts, pushes to artifact store
     - Orchestrator marks run done, records artifact refs in PostgreSQL
-    - GitHub Integration Service updates Issue to status:in-review, confirms PR open
+    - GitHub Integration Service updates Linear issue to In Review, confirms PR open
     - Event Bus receives run.completed
 
 12. Ephemeral COW overlay purged. Secret volumes revoked. AgentRun CRD deleted. Pod terminated.
@@ -675,11 +675,11 @@ The Spec Resolver enforces the planning gate at the execution boundary. A run ca
 
 ### Tracking Process
 
-The GitHub Integration Service maintains Issue state in sync with run state by consuming Event Bus events. Issue labels are applied and removed by the integration service — agents do not call the GitHub API for status updates. Agents update Issues only through declared outputs in `manifest.json`. This keeps the tracking source of truth accurate without agents having direct write access to Issue state.
+The GitHub Integration Service maintains Linear issue state in sync with run state by consuming Event Bus events. Issue state transitions are applied by the integration service. Agents do not call the GitHub API for status updates. Agents update issues only through declared outputs in `manifest.json`. This keeps the tracking source of truth accurate without agents having direct write access to lifecycle state.
 
 ### Implementation Process
 
-Agent containers are pre-configured with the Graphite CLI, branch naming convention (`t-<##>-<slug>`), and commit message format (`<type>(<scope>): <description> (T-##)`) defined in the implementation process. The agent protocol — write failing test, write minimum production code, refactor, commit, repeat per acceptance criterion — is enforced by the agent runtime's internal loop. Checkpoints are written after each externally visible action so that a transient failure can resume without replaying completed steps.
+Agent containers are pre-configured with the Graphite CLI, branch naming convention (`<linear-id>-t-<##>-<slug>`), and commit message format (`<type>(<scope>): <description> (T-##, <LINEAR-ID>)`) defined in the implementation process. The agent protocol — write failing test, write minimum production code, refactor, commit, repeat per acceptance criterion — is enforced by the agent runtime's internal loop. Checkpoints are written after each externally visible action so that a transient failure can resume without replaying completed steps.
 
 ### Review Process
 
@@ -830,7 +830,7 @@ These must be answered before or during Phase 1 planning:
 
 1. **Agent runtime selection**: Which runtimes are supported at launch — Claude CLI only, or also Codex, Gemini, custom? Does the execution plane enforce a single runtime or support a pluggable interface?
 
-2. **Run triggering in Phase 1**: Manual API submission only, or also a GitHub App webhook when an Issue moves to `status:ready`?
+2. **Run triggering in Phase 1**: Manual API submission only, or also a webhook when a Linear issue moves to `Selected`?
 
 3. **Human approval gate**: Should any run type require explicit human approval before the Scheduler dispatches it? If yes, where is the gate enforced and what is the approval mechanism?
 

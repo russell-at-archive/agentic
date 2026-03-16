@@ -100,7 +100,7 @@ Once the change is correct and sound, the reviewer confirms it is maintainable.
 
 No submission may enter formal review unless all of the following are present:
 
-- a linked GitHub Issue in `status:in-review`
+- a linked Linear issue in `In Review`
 - links to the parent `spec.md`, `plan.md`, and `tasks.md`
 - any required ADR links for architectural decisions
 - a concise PR summary explaining what changed and why

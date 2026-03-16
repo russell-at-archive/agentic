@@ -297,7 +297,7 @@ When work begins (Gate T-5):
 1. Confirm all dependency issues are `Done`.
 2. Assign the Engineer to the Linear issue.
 3. Create a git worktree and initialize a Graphite stack. Branch name format:
-   `<task-id>-<short-slug>` (e.g., `t-03-add-auth`).
+   `<linear-id>-t-<##>-<short-slug>` (e.g., `arc-42-t-03-add-auth`).
 4. Move the issue to `In Progress`.
 5. Add the branch name to the issue description.
 6. Add a short execution note if there is relevant context for handoff.

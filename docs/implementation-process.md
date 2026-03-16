@@ -6,7 +6,7 @@ This document defines the implementation process for Archive Agentic. It
 operates downstream of the planning process (`planning-process.md`) and task
 tracking process (`tracking-process.md`). Implementation begins only after
 gates 1 through 5 of the planning process are satisfied and the relevant
-GitHub Issue is in `status:ready`.
+Linear issue is in `Selected`.
 
 The intent is a delivery loop that is:
 
@@ -41,8 +41,8 @@ The intent is a delivery loop that is:
 Implementation may start only when all of the following are true:
 
 - the task exists in `tasks.md` and approved planning artifacts
-- the GitHub Issue is in `status:ready`
-- all upstream dependency tasks are `status:done`
+- the Linear issue is in `Selected`
+- all upstream dependency tasks are `Done`
 - acceptance criteria and required tests are explicit
 - any required ADRs exist and are linked
 - the local repository is clean and the stack is synced
@@ -61,7 +61,7 @@ implementation. Return to planning or wait for upstream work to complete.
 | Linter | Code style and static analysis | Project-defined |
 | Type checker | Type correctness | Project-defined |
 | `/speckit.implement` | Structured task execution strategy | — |
-| GitHub Issues | Live execution state and evidence | — |
+| Linear issues | Live execution state and evidence | — |
 
 ---
 
@@ -71,8 +71,7 @@ implementation. Return to planning or wait for upstream work to complete.
 
 Before writing any code, confirm:
 
-- [ ] GitHub Issue is `status:ready` and all upstream tasks are
-  `status:done`.
+- [ ] Linear issue is `Selected` and all upstream tasks are `Done`.
 - [ ] `spec.md`, `plan.md`, and `tasks.md` are reviewed and understood.
 - [ ] The acceptance criteria and required tests for this task are clear.
 - [ ] The task's non-goals are understood.
@@ -82,30 +81,30 @@ Before writing any code, confirm:
 
 ### 2. Create the Branch
 
-Branch names follow the task ID and a short slug:
+Branch names must include both the Linear issue ID and the task ID:
 
-```
-t-<##>-<short-slug>
+```text
+<linear-id>-t-<##>-<short-slug>
 ```
 
-Example: `t-07-token-expiry`
+Example: `arc-42-t-07-token-expiry`
 
 For the first task in a feature (no upstream task in the stack):
 
 ```sh
 gt sync
-gt create t-<##>-<slug>
+gt create <linear-id>-t-<##>-<slug>
 ```
 
 For a task that depends on an upstream task already in the stack, create the
 branch while checked out on the upstream branch:
 
 ```sh
-gt create t-<##>-<slug>
+gt create <linear-id>-t-<##>-<slug>
 ```
 
-Graphite tracks the parent automatically. Update the GitHub Issue: add the
-branch name and move the status to `status:in-progress`.
+Graphite tracks the parent automatically. Update the Linear issue: add the
+branch name and move the state to `In Progress`.
 
 ### 3. Implement Using TDD
 
@@ -123,27 +122,27 @@ acceptance criteria are covered by passing tests.
 
 #### Green — write minimum production code
 
-5. Write the smallest production code change that makes the failing test
+1. Write the smallest production code change that makes the failing test
    pass.
-6. Run the full test suite. All tests — including pre-existing ones — must
+2. Run the full test suite. All tests — including pre-existing ones — must
    pass.
-7. If pre-existing tests break, fix them before continuing. Do not proceed
+3. If pre-existing tests break, fix them before continuing. Do not proceed
    with a broken suite.
 
 #### Refactor — improve without changing behavior
 
-8. With a green suite, improve code clarity, remove duplication, or tighten
+1. With a green suite, improve code clarity, remove duplication, or tighten
    abstractions.
-9. Run the full test suite after every refactor step.
-10. Commit the completed cycle.
+2. Run the full test suite after every refactor step.
+3. Commit the completed cycle.
 
 Commit message format:
 
-```
-<type>(<scope>): <short description> (T-##)
+```text
+<type>(<scope>): <short description> (T-##, <LINEAR-ID>)
 ```
 
-Example: `feat(auth): add token expiry validation (T-07)`
+Example: `feat(auth): add token expiry validation (T-07, ARC-42)`
 
 Repeat the cycle until all acceptance criteria are covered.
 
@@ -178,7 +177,7 @@ If the task is part of a stack, every branch in the stack must remain locally
 valid relative to its parent branch.
 
 If a test failure is caused by an unmerged upstream task, the current task is
-`blocked`. Document the blocker in the GitHub Issue and do not open the PR
+`Blocked`. Document the blocker in the Linear issue and do not open the PR
 until the suite is green.
 
 ### 5. Open the Pull Request
@@ -191,13 +190,13 @@ gt submit --stack
 
 **PR title format:**
 
-```
+```text
 [T-##] <Task Title>
 ```
 
 **PR description must include:**
 
-- Link to the GitHub Issue
+- Link to the Linear issue
 - Link to `spec.md` and the relevant acceptance criteria
 - Link to `plan.md`
 - Link to the specific task in `tasks.md`
@@ -206,7 +205,7 @@ gt submit --stack
 - Output of the local validation pass, or a link to a passing CI run
 - Any deviation from the plan and its justification
 
-Move the GitHub Issue to `status:in-review`.
+Move the Linear issue to `In Review`.
 
 Signals that a branch is too large for a single PR:
 
@@ -222,12 +221,12 @@ before submitting.
 
 If review finds defects:
 
-1. Move the GitHub Issue back to `status:in-progress`.
+1. Move the Linear issue back to `In Progress`.
 2. Fix the defects on the same branch.
 3. Run the full local validation pass again. All checks must pass.
 4. Push the fix — `gt modify` updates the open PR in place.
 5. Restack if an upstream frame changed: `gt restack`.
-6. Move the GitHub Issue back to `status:in-review`.
+6. Move the Linear issue back to `In Review`.
 
 If review uncovers a missing requirement or design change, return to
 planning. Do not silently widen scope on the current branch.
@@ -241,11 +240,11 @@ when upstream frames merge. After the PR is approved and CI passes:
 gt submit --stack
 ```
 
-Update the GitHub Issue:
+Update the Linear issue:
 
 - Attach final test and validation evidence.
 - Check off all acceptance criteria.
-- Move to `status:done`.
+- Move to `Done`.
 
 ---
 
@@ -295,8 +294,8 @@ defines when implementation is ready for review, not when the task is closed.
 
 | Gate | Condition | Owner |
 | --- | --- | --- |
-| I-1 | Task is approved, `status:ready`, and all upstream tasks are `status:done` before code changes begin | Implementer |
-| I-2 | Branch created and issue updated to `status:in-progress` before any code is written | Implementer |
+| I-1 | Task is approved, `Selected`, and all upstream tasks are `Done` before code changes begin | Implementer |
+| I-2 | Branch created and issue updated to `In Progress` before any code is written | Implementer |
 | I-3 | Each new behavior slice has a failing automated test before production code is written | Implementer |
 | I-4 | One branch and one PR map to exactly one approved task | Implementer |
 | I-5 | Graphite stack order matches task dependency order from `tasks.md` | Implementer |
@@ -318,8 +317,8 @@ implementation with these additional requirements.
 
 - Read the approved task, `plan.md`, `spec.md`, and any linked ADRs before
   changing any code.
-- Report the current state of the GitHub Issue.
-- Confirm all upstream dependencies are `status:done`.
+- Report the current state of the Linear issue.
+- Confirm all upstream dependencies are `Done`.
 - Confirm the local repository is clean and the stack is synced.
 
 **During implementation:**
@@ -339,14 +338,14 @@ implementation with these additional requirements.
 
 **On uncertainty:**
 
-- Stop work and document the blocker in the GitHub Issue.
-- Move the issue to `status:blocked`.
+- Stop work and document the blocker in the Linear issue.
+- Move the issue to `Blocked`.
 - Do not resolve product or architectural ambiguity autonomously.
 - Do not improvise scope or design. Return to planning.
 
 An agent that completes implementation updates the issue state identically to
 a human developer: attach validation evidence, verify acceptance criteria,
-and move to `status:in-review` after the PR opens.
+and move to `In Review` after the PR opens.
 
 ---
 
@@ -364,7 +363,7 @@ Acceptable exception cases may include:
 - repository-level failures unrelated to the task that prevent full local
   validation
 
-Every exception must document all of the following in the GitHub Issue and
+Every exception must document all of the following in the Linear issue and
 PR:
 
 | Field | Required content |
