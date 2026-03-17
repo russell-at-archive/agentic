@@ -39,10 +39,13 @@ delivered increment.
 The workflow is executed by a team of specialized agents. Each agent is
 responsible for a defined portion of the lifecycle and only acts on issues
 whose state signals that agent's entry condition. The Director is the entry
-point — it polls Linear and delegates to the correct agent.
+point once a `Draft` issue exists — it polls Linear and delegates to the
+correct agent. Before that, a human may invoke the Feature Draft Agent to
+create the initial `Draft` issue.
 
 | Agent | Role | Entry State |
 | --- | --- | --- |
+| Feature Draft Agent | Conducts human intake and creates a planning-ready `Draft` issue | Human invoked |
 | Director | Polls Linear; invokes the appropriate agent based on issue state | Any |
 | Architect | Produces planning artifacts; opens plan review PR | `Draft` |
 | Coordinator | Schedules accepted plans by creating per-task Linear issues | `Backlog` |
@@ -55,7 +58,7 @@ Agents must not act on issues that are not in their required entry state.
 ## Design Principles
 
 - **Track execution, not ideation.** Linear tickets represent actionable,
-  approved work units only.
+  approved work units only once they reach `Draft`.
 - **Agent-First.** The process is designed to be operated autonomously by
   agents while remaining legible to humans.
 - **Link everything.** Tickets must link back to `spec.md`, `plan.md`, and
@@ -149,6 +152,26 @@ prevent avoidable ambiguity during implementation.
 
 Optional fields: Cycle, Estimate, Milestone, Subsystem labels, Risk level.
 
+## Draft Issue Intake Schema
+
+The initial `Draft` issue created by the Feature Draft Agent should include:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| Title | Yes | Outcome-oriented feature title |
+| State | Yes | `Draft` |
+| Project | Yes | `Agentic Harness` |
+| Team | Yes | `Platform & Infra` |
+| Requestor | Yes | Human or team asking for the work |
+| Classification | Yes | `feature`, `bug fix`, `refactor`, `dependency/update`, or `architecture/platform` |
+| Objective | Yes | One-paragraph summary of desired outcome |
+| Draft Design Prompt | Yes | CTR-based intake artifact |
+| Open Questions | When applicable | Ambiguities to be resolved during planning |
+| Acceptance Signal | Yes | How the stakeholder will know the request is satisfied |
+
+The Feature Draft Agent is human-invoked and pre-lifecycle. Once the issue is
+in `Draft`, the normal Director-Architect flow begins.
+
 ## State Model
 
 All issues move through the same nine states configured at the Linear team
@@ -238,7 +261,8 @@ entering execution in a fuzzy state.
 
 ### 1. Draft and plan (Architect)
 
-A new feature enters Linear as a `Draft` issue. The Director detects `Draft`
+A new feature may be created in Linear by a human directly or by the Feature
+Draft Agent. Once the issue exists in `Draft`, the Director detects `Draft`
 state and invokes the Architect (Gate T-1).
 
 The Architect:

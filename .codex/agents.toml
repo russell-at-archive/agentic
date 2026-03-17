@@ -23,6 +23,15 @@ compliance_gate_required = true
 lock_reconciliation_requires_human_confirmation = true
 
 [[agents]]
+id = "feature-draft"
+role = "Feature Draft Agent"
+entry_states = ["human-invoked"]
+exit_states = ["Draft"]
+reasoning = "medium"
+prompt_file = ".codex/agents/feature-draft.md"
+allowed_tools = ["linear", "stakeholder-intake", "docs-read"]
+
+[[agents]]
 id = "director"
 role = "Director"
 entry_states = ["*"]
@@ -147,4 +156,3 @@ required = ["graphite-stack-published", "traceability-links-present"]
 name = "T-8"
 transition = "In Review -> Done"
 required = ["acceptance-criteria-verified", "evidence-attached", "pr-merged", "director-rollup-confirmed"]
-

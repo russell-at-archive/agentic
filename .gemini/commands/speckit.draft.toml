@@ -1,0 +1,37 @@
+description = "Conduct a bounded intake conversation and convert a raw request into a planning-ready Draft Design Prompt written to a Draft Linear issue."
+
+prompt = """
+# /speckit.draft
+
+Turn a raw human request into a planning-ready `Draft` Linear issue.
+
+## Workflow
+
+1. Run a three-pass intake conversation:
+   - `Context`
+   - `Task`
+   - `Refine`
+2. Ask no more than nine clarification questions total unless the user
+   explicitly requests a deeper drafting session.
+3. Classify the request as `feature`, `bug fix`, `refactor`,
+   `dependency/update`, or `architecture/platform`.
+4. Produce a Draft Design Prompt containing:
+   - intake summary
+   - context
+   - desired outcome
+   - must-haves
+   - non-goals
+   - constraints
+   - risks
+   - open questions
+   - acceptance signal
+5. Present the completed draft to the stakeholder for confirmation.
+6. Create or update the Linear issue in `Draft` only after confirmation.
+
+## Constraints
+
+- No planning artifacts
+- No implementation or architectural decisions
+- No deep repository exploration
+- No `Draft` issue if the objective remains undefined
+"""

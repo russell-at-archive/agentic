@@ -12,6 +12,7 @@ This repository now includes a Codex-oriented multi-agent team definition under
 - [`.codex/agents.toml`](./agents.toml): repo-owned definition of the delivery
   team described in [docs/agentic-team.md](../docs/agentic-team.md)
 - [`.codex/agents/director.md`](./agents/director.md)
+- [`.codex/agents/feature-draft.md`](./agents/feature-draft.md)
 - [`.codex/agents/architect.md`](./agents/architect.md)
 - [`.codex/agents/coordinator.md`](./agents/coordinator.md)
 - [`.codex/agents/engineer.md`](./agents/engineer.md)
@@ -32,8 +33,9 @@ fully specify a stable project-level agent schema. Because of that:
 
 ## Team Mapping
 
-The checked-in configuration maps the team document to six Codex roles:
+The checked-in configuration maps the team document to seven Codex roles:
 
+- Feature Draft Agent
 - Director
 - Architect
 - Coordinator
@@ -44,7 +46,9 @@ The checked-in configuration maps the team document to six Codex roles:
 This matches the roster and state machine in
 [docs/agentic-team.md](../docs/agentic-team.md) and preserves the document's
 constraints around state-driven dispatch, human plan review, compliance gates,
-ADRs, and blocked-on-ambiguity behavior.
+ADRs, and blocked-on-ambiguity behavior. The one explicit exception is the
+Feature Draft Agent, which is human-invoked and creates the first `Draft`
+issue before Director dispatch begins.
 
 ## Intentional Non-Decisions
 

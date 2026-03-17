@@ -35,11 +35,12 @@ delivery speed.
 This repository ships a Speckit workflow under the following directories.
 `.specify/`
 `.claude/commands/`
-`.codex/commands/`
-`.gemini/clear/commands/`
+`.codex/prompts/`
+`.gemini/commands/`
 
 | Command | Purpose |
 | --- | --- |
+| `/speckit.draft` | Turn a raw request into a CTR-based Draft Design Prompt and create a `Draft` Linear issue |
 | `/speckit.constitution` | Author or amend the project constitution |
 | `/speckit.specify` | Turn a plain-language feature description into a structured, technology-agnostic specification |
 | `/speckit.clarify` | Ask targeted questions to resolve ambiguities in the spec before planning |
@@ -83,9 +84,34 @@ Gate:
 - The Constitution is ratified and committed before feature planning begins.
 - Treat an absent or placeholder Constitution as a blocker.
 
+### Phase 0.5: Feature Drafting
+
+Before formal planning starts, a human may invoke the Feature Draft Agent to
+turn a raw request into a planning-ready intake artifact.
+
+The output of this phase is a `Draft` Linear issue containing a Draft Design
+Prompt organized as:
+
+- `Context`
+- `Task`
+- `Refine`
+
+This phase is intentionally pre-lifecycle. It does not add a new Linear state.
+The Director begins state-driven dispatch only after the `Draft` issue exists.
+
+Tooling:
+
+- `/speckit.draft`
+
+Gate:
+
+- A planning-ready `Draft` issue exists before Phase 1 starts.
+
 ### Phase 1: Intake and Classification
 
-Every request starts with a short intake record. Classify the change as one of:
+Every request starts with a short intake record. When available, that record is
+the Draft Design Prompt created during Phase 0.5. Classify the change as one
+of:
 
 - `feature`
 - `bug fix`
@@ -101,6 +127,8 @@ Capture:
 - affected users or systems
 - urgency
 - likely impact areas in the repository
+- must-haves, non-goals, constraints, risks, and open questions from the
+  Draft Design Prompt when available
 
 Classification determines planning depth:
 

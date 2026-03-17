@@ -35,7 +35,9 @@ delivery quality.
 ## Design Principles
 
 - **State-driven dispatch.** Agents are invoked by Linear issue state, not by
-  direct call. The Director reads state; state determines which agent acts.
+  direct call, after a `Draft` issue exists. The Feature Draft Agent is the
+  one pre-lifecycle exception: it is invoked directly by a human and creates
+  the first `Draft` issue that enters the state machine.
 - **Single responsibility.** Each agent owns exactly one phase of the delivery
   lifecycle. No agent crosses phase boundaries.
 - **Entry condition enforcement.** Agents refuse to act on issues not in their
@@ -59,6 +61,38 @@ delivery quality.
 ---
 
 ## Agent Roster
+
+### 0. Feature Draft Agent
+
+**Mission**: Transform a raw human request into a planning-ready `Draft`
+Linear issue.
+
+**Entry condition**: Human-invoked before a planning-ready `Draft` issue exists.
+**Exit state**: `Draft`
+
+**Responsibilities**:
+
+1. Conduct a short structured intake conversation with the stakeholder.
+2. Classify the request as `feature`, `bug fix`, `refactor`,
+   `dependency/update`, or `architecture/platform`.
+3. Produce a CTR-based Draft Design Prompt using `Context`, `Task`, and
+   `Refine`.
+4. Capture must-haves, non-goals, constraints, risks, open questions, and the
+   acceptance signal.
+5. Confirm the completed draft with the stakeholder before writing to Linear.
+6. Create or update the Linear issue in `Draft`.
+7. Stop at handoff. Do not create `spec.md`, `plan.md`, or `tasks.md`.
+
+**Failure behavior**: If the objective remains undefined after intake, do not
+create the `Draft` issue. Document the blocker for the stakeholder and stop.
+
+**Model**: Medium reasoning effort. The work is conversational and
+classification-heavy, not deep technical planning.
+
+**Tools**: Stakeholder interaction, Linear API (create, update), lightweight
+documentation read access.
+
+---
 
 ### 1. Director
 
@@ -112,6 +146,9 @@ validates:
 
 If any check fails, the Director moves the issue to `Blocked` with the specific
 failure documented, and does not dispatch the agent.
+
+The Director does not dispatch the Feature Draft Agent. Draft creation is a
+human-invoked pre-lifecycle step.
 
 **Model**: Low reasoning effort. The Director is routing and validation logic,
 not deep reasoning.
@@ -658,4 +695,4 @@ Linear team configuration with exact name matching. Add the four type labels
 
 See [docs/open-questions.md](open-questions.md) for the consolidated
 and deduplicated question backlog. Questions originating here are tracked as OQ-04,
-OQ-05, OQ-06, OQ-08, OQ-09, OQ-13, OQ-18, OQ-19, OQ-24, OQ-29, OQ-30, OQ-31.
+OQ-05, OQ-08, OQ-09, OQ-13, OQ-18, OQ-19, OQ-24, OQ-30, OQ-31.

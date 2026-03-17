@@ -36,9 +36,17 @@ These must be reconciled.
 the same feature? If so, what is the worktree and branch naming policy, and how are lock
 conflicts detected and resolved?
 
-**OQ-06** — Who creates the initial `Draft` Linear issue — always a human today. Should a
-future Triage agent handle intake classification and Draft issue creation from a raw
-request? This is flagged as a Phase 4 consideration in `agentic-team.md`.
+**OQ-33** — Should `/speckit.draft` be the canonical operator interface for the
+Feature Draft Agent, or should direct runtime invocation remain sufficient?
+
+**OQ-34** — Should the Draft Design Prompt live only in Linear, or also be
+persisted in the repository after issue creation?
+
+**OQ-35** — What minimum quality bar must the Feature Draft Agent enforce before
+creating a `Draft` issue?
+
+**OQ-36** — Who is the requestor of record when intake starts from an automated
+source rather than a named human stakeholder?
 
 ---
 
