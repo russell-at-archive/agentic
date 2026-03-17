@@ -1,0 +1,8 @@
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+project_doc_fallback_filenames = ["AGENTS.md", "CLAUDE.md"]
+project_doc_max_bytes = 32768
+
+[features]
+multi_agent = true
+

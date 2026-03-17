@@ -1,0 +1,150 @@
+# Repo-owned Codex multi-agent team definition.
+# This file mirrors docs/agentic-team.md and is intended to be consumed by
+# future Codex-native agent loading or by local orchestration glue.
+
+schema = "codex-multi-agent-v0-draft"
+source = "docs/agentic-team.md"
+default_agent = "director"
+
+[team]
+name = "Archive Agentic Delivery Team"
+operating_model = "state-driven"
+tracker = "Linear"
+source_control = "GitHub"
+stacking = "Graphite"
+blocked_state = "Blocked"
+human_gate_states = ["Plan Review"]
+one_active_agent_per_issue = true
+
+[orchestration]
+director_required = true
+director_poll_interval = "5m"
+compliance_gate_required = true
+lock_reconciliation_requires_human_confirmation = true
+
+[[agents]]
+id = "director"
+role = "Director"
+entry_states = ["*"]
+exit_states = ["*"]
+reasoning = "low"
+prompt_file = ".codex/agents/director.md"
+allowed_tools = ["linear", "github-read", "issue-routing"]
+dispatches_to = ["architect", "coordinator", "engineer", "technical-lead"]
+
+[[agents]]
+id = "architect"
+role = "Architect"
+entry_states = ["Draft"]
+exit_states = ["Plan Review"]
+reasoning = "high"
+prompt_file = ".codex/agents/architect.md"
+allowed_tools = ["speckit", "linear", "github-write", "explorer"]
+dispatches_to = ["explorer"]
+
+[[agents]]
+id = "coordinator"
+role = "Coordinator"
+entry_states = ["Backlog"]
+exit_states = ["Backlog", "Selected"]
+reasoning = "low"
+prompt_file = ".codex/agents/coordinator.md"
+allowed_tools = ["linear", "github-read"]
+
+[[agents]]
+id = "engineer"
+role = "Engineer"
+entry_states = ["Selected"]
+exit_states = ["In Review"]
+reasoning = "high"
+prompt_file = ".codex/agents/engineer.md"
+allowed_tools = ["linear", "graphite", "git", "tests", "lint", "typecheck"]
+
+[[agents]]
+id = "technical-lead"
+role = "Technical Lead"
+entry_states = ["In Review"]
+exit_states = ["Done", "In Progress"]
+reasoning = "high"
+prompt_file = ".codex/agents/technical-lead.md"
+allowed_tools = ["github-review", "graphite", "linear"]
+
+[[agents]]
+id = "explorer"
+role = "Explorer"
+entry_states = ["on-demand"]
+exit_states = ["report-delivered"]
+reasoning = "medium"
+prompt_file = ".codex/agents/explorer.md"
+allowed_tools = ["web", "repo-read", "docs"]
+
+[[handoffs]]
+from = "director"
+to = "architect"
+when_state = "Draft"
+
+[[handoffs]]
+from = "director"
+to = "coordinator"
+when_state = "Backlog"
+
+[[handoffs]]
+from = "director"
+to = "engineer"
+when_state = "Selected"
+
+[[handoffs]]
+from = "director"
+to = "technical-lead"
+when_state = "In Review"
+
+[[handoffs]]
+from = "architect"
+to = "explorer"
+when = "planning_unknowns_block_progress"
+
+[[handoffs]]
+from = "any"
+to = "explorer"
+when = "technical_unknowns_block_progress"
+
+[[quality_gates]]
+name = "T-1"
+transition = "Draft -> Planning"
+required = ["architect-assigned", "objective-defined"]
+
+[[quality_gates]]
+name = "T-2"
+transition = "Planning -> Plan Review"
+required = ["spec.md", "plan.md", "tasks.md", "speckit.analyze-passes"]
+
+[[quality_gates]]
+name = "T-3"
+transition = "Plan Review -> Backlog"
+required = ["human-approved-plan-pr"]
+
+[[quality_gates]]
+name = "T-4"
+transition = "Backlog -> Selected"
+required = ["upstream-dependencies-done"]
+
+[[quality_gates]]
+name = "T-5"
+transition = "Selected -> In Progress"
+required = ["ticket-lock", "worktree-created", "stack-initialized"]
+
+[[quality_gates]]
+name = "T-6"
+transition = "In Progress -> Blocked"
+required = ["blocker-owner", "blocker-condition", "blocker-date"]
+
+[[quality_gates]]
+name = "T-7"
+transition = "In Progress -> In Review"
+required = ["graphite-stack-published", "traceability-links-present"]
+
+[[quality_gates]]
+name = "T-8"
+transition = "In Review -> Done"
+required = ["acceptance-criteria-verified", "evidence-attached", "pr-merged", "director-rollup-confirmed"]
+
