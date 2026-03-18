@@ -1,9 +1,9 @@
-description = "Conduct a bounded intake conversation and convert a raw request into a planning-ready Draft Design Prompt written to a Draft Linear issue."
+description = "Conduct a bounded intake conversation and convert a raw request into a planning-ready Draft Design Prompt written to a Triage Linear issue."
 
 prompt = """
 # /speckit.draft
 
-Turn a raw human request into a planning-ready `Draft` Linear issue.
+Turn a raw human request into a planning-ready `Triage` Linear issue.
 
 ## Workflow
 
@@ -26,12 +26,12 @@ Turn a raw human request into a planning-ready `Draft` Linear issue.
    - open questions
    - acceptance signal
 5. Present the completed draft to the stakeholder for confirmation.
-6. Create or update the Linear issue in `Draft` only after confirmation.
+6. Create or update the Linear issue in `Triage` only after confirmation.
 
 ## Constraints
 
 - No planning artifacts
 - No implementation or architectural decisions
 - No deep repository exploration
-- No `Draft` issue if the objective remains undefined
+- No `Triage` issue if the objective remains undefined
 """

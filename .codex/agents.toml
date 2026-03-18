@@ -12,8 +12,8 @@ operating_model = "state-driven"
 tracker = "Linear"
 source_control = "GitHub"
 stacking = "Graphite"
-blocked_state = "Blocked"
-human_gate_states = ["Plan Review"]
+blocked_states = ["Blocked", "Blocked (backlog)"]
+human_gate_states = ["In Review"] # In Review with "plan" label = human plan review gate
 one_active_agent_per_issue = true
 
 [orchestration]
@@ -26,7 +26,7 @@ lock_reconciliation_requires_human_confirmation = true
 id = "feature-draft"
 role = "Feature Draft Agent"
 entry_states = ["human-invoked"]
-exit_states = ["Draft"]
+exit_states = ["Triage"]
 reasoning = "medium"
 prompt_file = ".codex/agents/feature-draft.md"
 allowed_tools = ["linear", "stakeholder-intake", "docs-read"]
@@ -44,8 +44,10 @@ dispatches_to = ["architect", "coordinator", "engineer", "technical-lead"]
 [[agents]]
 id = "architect"
 role = "Architect"
-entry_states = ["Draft"]
-exit_states = ["Plan Review"]
+entry_states = ["Triage"]
+exit_states = ["In Review"]
+working_label = "planning"
+exit_label = "plan"
 reasoning = "high"
 prompt_file = ".codex/agents/architect.md"
 allowed_tools = ["speckit", "linear", "github-write", "explorer"]
@@ -90,7 +92,7 @@ allowed_tools = ["web", "repo-read", "docs"]
 [[handoffs]]
 from = "director"
 to = "architect"
-when_state = "Draft"
+when_state = "Triage"
 
 [[handoffs]]
 from = "director"
@@ -106,6 +108,7 @@ when_state = "Selected"
 from = "director"
 to = "technical-lead"
 when_state = "In Review"
+when_label_absent = "plan"
 
 [[handoffs]]
 from = "architect"
@@ -119,18 +122,23 @@ when = "technical_unknowns_block_progress"
 
 [[quality_gates]]
 name = "T-1"
-transition = "Draft -> Planning"
+transition = "Triage -> Triage"
 required = ["architect-assigned", "objective-defined"]
+label_added = "planning"
 
 [[quality_gates]]
 name = "T-2"
-transition = "Planning -> Plan Review"
-required = ["spec.md", "plan.md", "tasks.md", "speckit.analyze-passes"]
+transition = "Triage -> In Review"
+required = ["spec.md", "plan.md", "tasks.md", "speckit.analyze-passes", "plan-pr-opened"]
+label_set = "plan"
+label_cleared = "planning"
 
 [[quality_gates]]
 name = "T-3"
-transition = "Plan Review -> Backlog"
+transition = "In Review -> Backlog"
 required = ["human-approved-plan-pr"]
+label_cleared = "plan"
+actor = "human"
 
 [[quality_gates]]
 name = "T-4"

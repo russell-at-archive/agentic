@@ -47,7 +47,7 @@ This matches the roster and state machine in
 [docs/agentic-team.md](../docs/agentic-team.md) and preserves the document's
 constraints around state-driven dispatch, human plan review, compliance gates,
 ADRs, and blocked-on-ambiguity behavior. The one explicit exception is the
-Feature Draft Agent, which is human-invoked and creates the first `Draft`
+Feature Draft Agent, which is human-invoked and creates the first `Triage`
 issue before Director dispatch begins.
 
 ## Intentional Non-Decisions
@@ -64,3 +64,13 @@ document leaves open, including:
 Those remain subject to the ADR and open-question process already documented in
 [docs/agentic-team.md](../docs/agentic-team.md) and
 [docs/open-questions.md](../docs/open-questions.md).
+
+## invoking
+
+/prompts/speckit.draft
+
+› context: to prevent unwanted changes to the host system the orchestrator agent will invoke subagent processes within an isolated docker container,
+  task: the docker container must include nodejs, npm, claude code, codex, gemini cli, and well as the pi coding agent and must provide bind mounts to each docing agent configuration
+  directories on the host machine to access auth and session information.
+  Refine: the docker container should use as a base image ubuntu 24, the existing devcontainer config will not be changed, this will be an additional container invoked vic bash command to
+  perform single tasks

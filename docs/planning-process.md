@@ -40,7 +40,7 @@ This repository ships a Speckit workflow under the following directories.
 
 | Command | Purpose |
 | --- | --- |
-| `/speckit.draft` | Turn a raw request into a CTR-based Draft Design Prompt and create a `Draft` Linear issue |
+| `/speckit.draft` | Turn a raw request into a CTR-based Draft Design Prompt and create a `Triage` Linear issue |
 | `/speckit.constitution` | Author or amend the project constitution |
 | `/speckit.specify` | Turn a plain-language feature description into a structured, technology-agnostic specification |
 | `/speckit.clarify` | Ask targeted questions to resolve ambiguities in the spec before planning |
@@ -89,7 +89,7 @@ Gate:
 Before formal planning starts, a human may invoke the Feature Draft Agent to
 turn a raw request into a planning-ready intake artifact.
 
-The output of this phase is a `Draft` Linear issue containing a Draft Design
+The output of this phase is a `Triage` Linear issue containing a Draft Design
 Prompt organized as:
 
 - `Context`
@@ -97,7 +97,7 @@ Prompt organized as:
 - `Refine`
 
 This phase is intentionally pre-lifecycle. It does not add a new Linear state.
-The Director begins state-driven dispatch only after the `Draft` issue exists.
+The Director begins state-driven dispatch only after the `Triage` issue exists.
 
 Tooling:
 
@@ -105,7 +105,7 @@ Tooling:
 
 Gate:
 
-- A planning-ready `Draft` issue exists before Phase 1 starts.
+- A planning-ready `Triage` issue exists before Phase 1 starts.
 
 ### Phase 1: Intake and Classification
 

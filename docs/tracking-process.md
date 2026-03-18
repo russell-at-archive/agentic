@@ -15,18 +15,17 @@ The intent is a process that is:
 
 The guiding principle is that planning and execution are distinct. Planning
 artifacts define approved work. Linear records the live execution of that work
-across the full nine-state lifecycle from initial feature draft through to
-delivered increment.
+from initial feature draft through to delivered increment.
 
 ## Process Summary
 
 1. Use `spec.md`, `plan.md`, and `tasks.md` as approved planning artifacts
    managed via GitHub Speckit.
 2. Use one Linear issue per approved task as the live execution record.
-3. Move each issue through the full nine-state lifecycle:
-   `Draft` → `Planning` → `Plan Review` → `Backlog` → `Selected` →
-   `In Progress` → `In Review` → `Done`, with `Blocked` as a returnable
-   interruption state from any active state.
+3. Move each issue through the lifecycle:
+   `Triage` (+ `planning` label) → `In Review` (+ `plan` label) → `Backlog` →
+   `Selected` → `In Progress` → `In Review` → `Done`, with `Blocked` or
+   `Blocked (backlog)` as returnable interruption states.
 4. Require explicit ownership, blocker handling, traceability, and completion
    evidence at each state transition.
 5. Require agents to leave resumable execution notes when they materially
@@ -39,15 +38,15 @@ delivered increment.
 The workflow is executed by a team of specialized agents. Each agent is
 responsible for a defined portion of the lifecycle and only acts on issues
 whose state signals that agent's entry condition. The Director is the entry
-point once a `Draft` issue exists — it polls Linear and delegates to the
+point once a `Triage` issue exists — it polls Linear and delegates to the
 correct agent. Before that, a human may invoke the Feature Draft Agent to
-create the initial `Draft` issue.
+create the initial `Triage` issue.
 
 | Agent | Role | Entry State |
 | --- | --- | --- |
-| Feature Draft Agent | Conducts human intake and creates a planning-ready `Draft` issue | Human invoked |
+| Feature Draft Agent | Conducts human intake and creates a planning-ready `Triage` issue | Human invoked |
 | Director | Polls Linear; invokes the appropriate agent based on issue state | Any |
-| Architect | Produces planning artifacts; opens plan review PR | `Draft` |
+| Architect | Produces planning artifacts; opens plan review PR | `Triage` (no `planning` label) |
 | Coordinator | Schedules accepted plans by creating per-task Linear issues | `Backlog` |
 | Engineer | Implements tasks via Graphite stacked PRs | `Selected` |
 | Technical Lead | Reviews submitted pull requests | `In Review` |
@@ -58,7 +57,7 @@ Agents must not act on issues that are not in their required entry state.
 ## Design Principles
 
 - **Track execution, not ideation.** Linear tickets represent actionable,
-  approved work units only once they reach `Draft`.
+  approved work units only once they reach `Triage`.
 - **Agent-First.** The process is designed to be operated autonomously by
   agents while remaining legible to humans.
 - **Link everything.** Tickets must link back to `spec.md`, `plan.md`, and
@@ -154,12 +153,12 @@ Optional fields: Cycle, Estimate, Milestone, Subsystem labels, Risk level.
 
 ## Draft Issue Intake Schema
 
-The initial `Draft` issue created by the Feature Draft Agent should include:
+The initial `Triage` issue created by the Feature Draft Agent should include:
 
 | Field | Required | Notes |
 | --- | --- | --- |
 | Title | Yes | Outcome-oriented feature title |
-| State | Yes | `Draft` |
+| State | Yes | `Triage` |
 | Project | Yes | `Agentic Harness` |
 | Team | Yes | `Platform & Infra` |
 | Requestor | Yes | Human or team asking for the work |
@@ -170,43 +169,52 @@ The initial `Draft` issue created by the Feature Draft Agent should include:
 | Acceptance Signal | Yes | How the stakeholder will know the request is satisfied |
 
 The Feature Draft Agent is human-invoked and pre-lifecycle. Once the issue is
-in `Draft`, the normal Director-Architect flow begins.
+in `Triage`, the normal Director-Architect flow begins.
 
 ## State Model
 
-All issues move through the same nine states configured at the Linear team
-level. State names must match exactly.
+All issues move through the states configured at the Linear team level. State
+names must match exactly.
 
 | State | Owner | Phase | Meaning | Exit Condition |
 | --- | --- | --- | --- | --- |
-| `Draft` | Architect | Planning | Feature created; Architect not yet assigned | Architect assigned; objective defined |
-| `Planning` | Architect | Planning | Architect producing `spec.md`, `plan.md`, `tasks.md` | Plan PR opened |
-| `Plan Review` | Architect | Planning | Plan PR open; awaiting human approval | Plan PR merged |
+| `Triage` | Architect | Planning | Feature created; Architect not yet assigned (no `planning` label) OR Architect actively planning (+ `planning` label) | `planning` label added; then plan PR opened |
 | `Backlog` | Coordinator | Scheduling | Plan accepted; awaiting Coordinator scheduling | Coordinator creates per-task issues |
 | `Selected` | Engineer | Implementation | Per-task issues created; ready for Engineer | Engineer begins work |
 | `In Progress` | Engineer | Implementation | Engineer actively implementing | PR submitted or blocker found |
-| `Blocked` | Assignee | Any | Work cannot proceed; blocker documented | Blocker resolved |
-| `In Review` | Technical Lead | Review | Graphite stack published; Technical Lead reviewing | Review complete |
+| `Blocked (backlog)` | Architect | Planning | Architect blocked during planning; blocker documented | Blocker resolved; return to `Triage + planning` |
+| `Blocked` | Assignee | Execution | Work cannot proceed during execution phase; blocker documented | Blocker resolved; return to prior state |
+| `In Review` | Technical Lead / Human | Review | Graphite stack published (Technical Lead reviewing, no `plan` label) OR Plan PR open awaiting human approval (+ `plan` label) | Review complete |
 | `Done` | Director | Complete | PR merged; evidence attached; Director confirms rollup | None |
 
-`Blocked` is a returnable interruption state. It may be entered from any
-active state. On resolution, the issue returns to the state it held before
-entering `Blocked`.
+**Note on labels**: The `planning` and `plan` labels indicate sub-states within
+`Triage` and `In Review` respectively. See the Labels section for details.
 
-A task may never move from `Blocked` directly to `Done`.
+`Blocked (backlog)` is the planning-phase blocker. On resolution, the issue
+returns to `Triage + planning`.
+
+`Blocked` is the execution-phase blocker. It may be entered from `Selected`,
+`In Progress`, or `In Review`. On resolution, the issue returns to the state it
+held before entering `Blocked`.
+
+A task may never move from either blocked state directly to `Done`.
 
 ### State Transition Rules
 
 **Planning track:**
 
-- `Draft` → `Planning`: Architect is assigned, objective is defined, planning
-  begins.
-- `Planning` → `Blocked`: Architect encounters an unresolvable dependency or
-  ambiguity.
-- `Planning` → `Plan Review`: Architect opens a PR containing all planning
-  artifacts and `/speckit.analyze` passes.
-- `Plan Review` → `Planning`: Review finds deficiencies; Architect revises.
-- `Plan Review` → `Backlog`: Plan PR is approved and merged.
+- `Triage` → `Triage + planning` (label added): Architect is assigned,
+  objective is defined, `planning` label is added.
+- `Triage + planning` → `Blocked (backlog)`: Architect encounters an
+  unresolvable dependency or ambiguity during planning.
+- `Triage + planning` → `In Review + plan`: Architect opens a PR containing
+  all planning artifacts and `/speckit.analyze` passes; `planning` label
+  removed, `plan` label added, issue moved to `In Review`.
+- `In Review + plan` → `Triage + planning`: Review finds deficiencies; human
+  sends issue back (`plan` label removed, `planning` label added, issue moved
+  to `Triage`); Architect revises.
+- `In Review + plan` → `Backlog`: Plan PR is approved and merged by human
+  (`plan` label removed).
 
 **Scheduling track:**
 
@@ -234,9 +242,9 @@ Transition without satisfying the gate is not permitted.
 
 | Gate | Transition | Condition |
 | --- | --- | --- |
-| T-1 | `Draft` → `Planning` | Architect assigned; issue objective defined |
-| T-2 | `Planning` → `Plan Review` | `spec.md`, `plan.md`, and `tasks.md` exist; `/speckit.analyze` passes |
-| T-3 | `Plan Review` → `Backlog` | Plan PR approved and merged |
+| T-1 | `Triage` → `Triage` (+ `planning` label) | Architect assigned; issue objective defined |
+| T-2 | `Triage + planning` → `In Review + plan` | `spec.md`, `plan.md`, and `tasks.md` exist; `/speckit.analyze` passes; plan PR opened |
+| T-3 | `In Review + plan` → `Backlog` | Human approves and merges plan PR (human action required) |
 | T-4 | `Backlog` → `Selected` | All dependency tasks are `Done` |
 | T-5 | `Selected` → `In Progress` | Worktree created; Graphite stack initialized; issue updated |
 | T-6 | `In Progress` → `Blocked` | Blocker formally documented with owner and date |
@@ -254,7 +262,7 @@ An issue may enter `Selected` only when:
 - required tests are identified
 - the task is scoped tightly enough to review in one Graphite stacked PR
 
-If any of these are missing, the work returns to `Planning` instead of
+If any of these are missing, the work returns to `Triage + planning` instead of
 entering execution in a fuzzy state.
 
 ## Workflow
@@ -262,20 +270,20 @@ entering execution in a fuzzy state.
 ### 1. Draft and plan (Architect)
 
 A new feature may be created in Linear by a human directly or by the Feature
-Draft Agent. Once the issue exists in `Draft`, the Director detects `Draft`
+Draft Agent. Once the issue exists in `Triage`, the Director detects `Triage`
 state and invokes the Architect (Gate T-1).
 
 The Architect:
 
 1. Accepts assignment; confirms the objective is defined.
-2. Moves the issue to `Planning`.
+2. Adds the `planning` label to the issue.
 3. Produces `spec.md`, `plan.md`, and `tasks.md` using GitHub Speckit.
 4. Creates any required ADR documents.
 5. Structures `tasks.md` so each task is appropriately sized for a single
    Graphite stacked PR.
 6. Runs `/speckit.analyze` to verify cross-artifact consistency (Gate T-2).
 7. Opens a PR containing all planning artifacts.
-8. Moves the issue to `Plan Review`.
+8. Moves the issue to `In Review` and adds the `plan` label (removes `planning` label).
 
 Plan PR title format:
 
@@ -286,8 +294,9 @@ plan: [Feature Name] planning artifacts
 ### 2. Review the plan (human)
 
 Human reviewers examine the plan PR. If deficiencies are found, the issue
-returns to `Planning` and the Architect revises. When the PR is approved and
-merged, the issue advances to `Backlog` (Gate T-3).
+returns to `Triage + planning` (removes `plan` label, adds `planning` label,
+moves issue back to `Triage`) and the Architect revises. When the PR is
+approved and merged, the human moves the issue to `Backlog` (Gate T-3).
 
 ### 3. Schedule work (Coordinator)
 
@@ -458,9 +467,9 @@ state.
 
 | Trigger | Action |
 | --- | --- |
-| Feature created | Create `Draft` issue; Director invokes Architect |
-| Plan PR opened | Move issue to `Plan Review` |
-| Plan PR merged | Move issue to `Backlog`; Director invokes Coordinator |
+| Feature created | Create `Triage` issue; Director invokes Architect |
+| Plan PR opened | Move issue to `In Review`, add `plan` label (Architect action) |
+| Plan PR merged | Human moves issue to `Backlog`; Director invokes Coordinator |
 | Tasks created | Move task issues to `Selected`; Director invokes Engineer |
 | Blocker discovered | Update Linear issue immediately |
 | PR published | Move issue to `In Review`; Director invokes Technical Lead |
@@ -493,25 +502,32 @@ updates, issue creation, and state transitions.
 
 #### Workflow States
 
-Configure the following nine states at the Linear team level. State names must
+Configure the following states at the Linear team level. State names must
 match exactly.
 
 | State | Phase | Meaning |
 | --- | --- | --- |
-| `Draft` | Planning | Feature created; Architect not yet started |
-| `Planning` | Planning | Architect producing planning artifacts |
-| `Plan Review` | Planning | Plan PR open; awaiting human approval |
+| `Triage` | Planning | Feature created; Architect not yet started (no `planning` label) OR Architect actively planning (+ `planning` label) |
 | `Backlog` | Scheduling | Plan accepted; awaiting Coordinator scheduling |
 | `Selected` | Implementation | Tasks created; ready for Engineer |
-| `Blocked` | Any | Active work halted; blocker documented |
+| `Blocked (backlog)` | Planning | Architect blocked during planning phase; blocker documented |
+| `Blocked` | Execution | Active work halted during execution phase; blocker documented |
 | `In Progress` | Implementation | Engineer actively implementing |
-| `In Review` | Review | Graphite stack published; Technical Lead reviewing |
+| `In Review` | Review | Graphite stack published; Technical Lead reviewing (no `plan` label) OR Plan PR open awaiting human approval (+ `plan` label) |
 | `Done` | Complete | PR merged; evidence attached; rollup confirmed |
 
 #### Labels
 
-Use labels for type classification. Use Linear's native priority field
-(Urgent, High, Medium, Low, No Priority) for sequencing.
+Use type labels for classification. Use state labels to indicate planning
+sub-states. Use Linear's native priority field (Urgent, High, Medium, Low, No
+Priority) for sequencing.
+
+**State labels** (indicate sub-state within a Linear state; not for type classification):
+
+| Label | Applied to State | Set by | Cleared by | Meaning |
+| --- | --- | --- | --- | --- |
+| `planning` | `Triage` | Architect (at T-1) | Architect (at T-2) | Architect is actively producing planning artifacts |
+| `plan` | `In Review` | Architect (at T-2) | Human (at T-3, on plan PR merge) | Plan PR is open; awaiting human plan approval |
 
 **Type labels:**
 
@@ -584,7 +600,7 @@ is executed and governed.
 ## Conclusion
 
 - Planning artifacts define approved work.
-- Linear issues hold live execution state across the full nine-state lifecycle.
+- Linear issues hold live execution state across the full lifecycle.
 - Graphite stacked PRs carry implementation and review discussion.
 - GitHub is the canonical merge destination.
 - Evidence closes the loop between plan and delivery.
@@ -595,8 +611,8 @@ See [docs/open-questions.md](open-questions.md) for the consolidated
 and deduplicated question backlog. Questions originating here are tracked as OQ-12,
 OQ-20, OQ-21, OQ-24, OQ-25, OQ-26, OQ-32.
 
-The eight gate rules enforce the conditions for each transition. The nine
-workflow states make progress visible and queryable across the team. The agent
-role model ensures each phase is handled by the specialist best suited to it.
-The proportional execution log protocol keeps auditability requirements
+The eight gate rules enforce the conditions for each transition. The workflow
+states and labels make progress visible and queryable across the team. The
+agent role model ensures each phase is handled by the specialist best suited
+to it. The proportional execution log protocol keeps auditability requirements
 practical rather than ceremonial.

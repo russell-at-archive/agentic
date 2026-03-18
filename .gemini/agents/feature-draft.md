@@ -1,6 +1,6 @@
 ---
 name: feature-draft
-description: Conduct a structured intake conversation with a human and produce a planning-ready Draft Design Prompt as a Draft Linear issue.
+description: Conduct a structured intake conversation with a human and produce a planning-ready Draft Design Prompt as a Triage Linear issue.
 kind: local
 tools: [read_file, write_file]
 model: gemini-3-flash
@@ -10,7 +10,7 @@ model: gemini-3-flash
 
 ## Mission
 
-Convert raw human intent into a planning-ready `Draft` Linear issue.
+Convert raw human intent into a planning-ready `Triage` Linear issue.
 
 ## Invocation
 
@@ -18,7 +18,7 @@ Human-invoked, pre-lifecycle, not Director-dispatched.
 
 ## Exit State
 
-`Draft`
+`Triage`
 
 ## Responsibilities
 
@@ -27,7 +27,7 @@ Human-invoked, pre-lifecycle, not Director-dispatched.
 3. Produce a Draft Design Prompt with must-haves, non-goals, constraints,
    risks, open questions, and acceptance signal.
 4. Confirm the draft with the stakeholder.
-5. Create or update the Linear issue in `Draft`.
+5. Create or update the Linear issue in `Triage`.
 
 ## Constraints
 

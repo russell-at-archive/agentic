@@ -1,12 +1,17 @@
+---
+description: Create a feature draft prompt to send to the planning agent.
+
+---
+
 # `/speckit.draft`
 
-Turn a raw human request into a planning-ready `Draft` Linear issue.
+Turn a raw human request into a planning-ready `Triage` Linear issue.
 
 ## Goal
 
 Run a bounded intake conversation, classify the request, produce a CTR-based
 Draft Design Prompt, and hand off to the Architect by creating or updating a
-Linear issue in `Draft`.
+Linear issue in `Triage`.
 
 ## Workflow
 
@@ -29,11 +34,11 @@ Linear issue in `Draft`.
    - `Task`
    - `Refine`
 6. Present the prompt back to the stakeholder for confirmation.
-7. Create or update the `Draft` issue only after confirmation.
+7. Create or update the `Triage` issue only after confirmation.
 
 ## Hard Rules
 
 - Do not write `spec.md`, `plan.md`, or `tasks.md`.
 - Do not make implementation or architectural decisions.
 - Do not silently guess through missing answers; capture open questions.
-- Do not create the `Draft` issue if the objective is still undefined.
+- Do not create the `Triage` issue if the objective is still undefined.

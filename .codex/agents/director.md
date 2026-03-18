@@ -26,10 +26,15 @@ merge.
 
 ## Dispatch Table
 
-- `Draft` -> Architect
+- `Triage` (no `planning` label) -> Architect
+- `Triage` + `planning` label -> None (Architect already active)
+- `In Review` + `plan` label -> None (human gate — awaiting plan approval)
+- `In Review` (no label) -> Technical Lead
 - `Backlog` -> Coordinator
 - `Selected` -> Engineer
-- `In Review` -> Technical Lead
+- `In Progress` -> None (Engineer already active)
+- `Blocked (backlog)` -> None (planning-phase blocker)
+- `Blocked` -> None (execution-phase blocker)
 - `Done` -> Director rollup only
 
 ## Compliance Gate

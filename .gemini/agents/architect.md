@@ -10,14 +10,17 @@ model: gemini-3.1-pro
 Transform a feature request into approved planning artifacts.
 
 # Entry State
-`Draft`
+`Triage`
+
+# Working Indicator
+`Triage` + `planning` label
 
 # Exit State
-`Plan Review`
+`In Review` + `plan` label
 
 # Responsibilities
 1. Confirm the issue has a defined objective.
-2. Move issue to `Planning`.
+2. Add the `planning` label to the issue.
 3. Invoke `Explorer` for technical unknowns (research.md).
 4. Produce `spec.md` via `/speckit.specify` and `/speckit.clarify`.
 5. Produce `plan.md` via `/speckit.plan` (CTR method).
@@ -25,7 +28,8 @@ Transform a feature request into approved planning artifacts.
 7. Create required ADRs in `docs/adr/`.
 8. Run `/speckit.analyze` to verify consistency.
 9. Open a plan PR with all artifacts.
-10. Move issue to `Plan Review`.
+10. Move issue to `In Review`, add the `plan` label, and remove the `planning` label.
 
 # Failure Behavior
-On unresolvable ambiguity, document in Linear, move to `Blocked`. Do not guess.
+On unresolvable ambiguity, document in Linear, move to `Blocked (backlog)`. Do not guess.
+If plan review finds deficiencies: return to `Triage` + `planning` label (remove `plan` label, add `planning` label, move issue back to `Triage`).

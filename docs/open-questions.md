@@ -27,7 +27,7 @@ for moving it from Draft to ratified status, and who are the required approvers?
 
 ## Agent Roles & Dispatch
 
-**OQ-04** — Who has final authority to approve the plan artifact in `Plan Review` state?
+**OQ-04** — Who has final authority to approve the plan artifact when the issue is in `In Review` + `plan` label state?
 Is it always a human? Can the Technical Lead serve as plan reviewer in addition to code
 reviewer? One document assigns ownership to `Architect`; another assigns it to `Human`.
 These must be reconciled.
@@ -43,7 +43,7 @@ Feature Draft Agent, or should direct runtime invocation remain sufficient?
 persisted in the repository after issue creation?
 
 **OQ-35** — What minimum quality bar must the Feature Draft Agent enforce before
-creating a `Draft` issue?
+creating a `Triage` issue?
 
 **OQ-36** — Who is the requestor of record when intake starts from an automated
 source rather than a named human stakeholder?

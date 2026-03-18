@@ -35,9 +35,9 @@ delivery quality.
 ## Design Principles
 
 - **State-driven dispatch.** Agents are invoked by Linear issue state, not by
-  direct call, after a `Draft` issue exists. The Feature Draft Agent is the
+  direct call, after a `Triage` issue exists. The Feature Draft Agent is the
   one pre-lifecycle exception: it is invoked directly by a human and creates
-  the first `Draft` issue that enters the state machine.
+  the first `Triage` issue that enters the state machine.
 - **Single responsibility.** Each agent owns exactly one phase of the delivery
   lifecycle. No agent crosses phase boundaries.
 - **Entry condition enforcement.** Agents refuse to act on issues not in their
@@ -45,10 +45,11 @@ delivery quality.
 - **Evidence-based completion.** No state transition advances without required
   evidence attached. Assertions without evidence are rejected.
 - **Fail loudly.** When an agent cannot proceed, it documents the blocker in
-  Linear, moves the issue to `Blocked`, and stops. It does not improvise or
-  silently skip gates.
+  Linear and stops. During the planning phase the issue moves to
+  `Blocked (backlog)`; during execution it moves to `Blocked`. It does not
+  improvise or silently skip gates.
 - **Humans gate plan review.** Plan artifacts are reviewed and approved by
-  humans. No agent auto-approves a plan.
+  humans via `In Review` + `plan` label. No agent auto-approves a plan.
 - **ADRs are mandatory.** Significant architectural decisions require an ADR
   before work continues. Agents check for required ADRs and stop if one is
   missing.
@@ -64,11 +65,11 @@ delivery quality.
 
 ### 0. Feature Draft Agent
 
-**Mission**: Transform a raw human request into a planning-ready `Draft`
+**Mission**: Transform a raw human request into a planning-ready `Triage`
 Linear issue.
 
-**Entry condition**: Human-invoked before a planning-ready `Draft` issue exists.
-**Exit state**: `Draft`
+**Entry condition**: Human-invoked before a planning-ready `Triage` issue exists.
+**Exit state**: `Triage`
 
 **Responsibilities**:
 
@@ -80,11 +81,11 @@ Linear issue.
 4. Capture must-haves, non-goals, constraints, risks, open questions, and the
    acceptance signal.
 5. Confirm the completed draft with the stakeholder before writing to Linear.
-6. Create or update the Linear issue in `Draft`.
+6. Create or update the Linear issue in `Triage`.
 7. Stop at handoff. Do not create `spec.md`, `plan.md`, or `tasks.md`.
 
 **Failure behavior**: If the objective remains undefined after intake, do not
-create the `Draft` issue. Document the blocker for the stakeholder and stop.
+create the `Triage` issue. Document the blocker for the stakeholder and stop.
 
 **Model**: Medium reasoning effort. The work is conversational and
 classification-heavy, not deep technical planning.
@@ -124,15 +125,16 @@ agent based on state. Confirm completion.
 
 | Issue State | Target Agent | Notes |
 | --- | --- | --- |
-| `Draft` | Architect | — |
+| `Triage` (no `planning` label) | Architect | — |
+| `Triage` + `planning` label | None | Architect already active |
+| `In Review` + `plan` label | None | Human gate — awaiting plan approval |
+| `In Review` (no `plan` label) | Technical Lead | — |
 | `Backlog` | Coordinator | — |
 | `Selected` | Engineer | After Compliance Gate confirms dependencies done |
-| `In Review` | Technical Lead | — |
-| `Done` | Director (rollup) | Confirmation only, no external dispatch |
-| `Planning` | None | Architect already active |
-| `Plan Review` | None | Awaiting human approval |
 | `In Progress` | None | Engineer already active |
-| `Blocked` | None | Awaiting blocker resolution |
+| `Blocked (backlog)` | None | Planning-phase blocker; await resolution |
+| `Blocked` | None | Execution-phase blocker; await resolution |
+| `Done` | Director (rollup) | Confirmation only, no external dispatch |
 
 **Compliance Gate sub-function**: Before every dispatch, the Director
 validates:
@@ -140,8 +142,9 @@ validates:
 - Required artifacts exist for the current phase (see Artifact Standards).
 - The issue has a defined assignee and objective.
 - For `Selected`: all upstream dependency issues are `Done`.
-- For `In Review`: the PR description contains spec, plan, task links, and
-  validation evidence.
+- For `In Review` (no `plan` label): the PR description contains spec, plan, task links, and
+  validation evidence. (Note: `In Review` + `plan` label is a human plan review gate; the
+  Director does not dispatch the Technical Lead to these issues.)
 - For `Done` rollup: acceptance criteria, CI evidence, and PR link are present.
 
 If any check fails, the Director moves the issue to `Blocked` with the specific
@@ -161,13 +164,14 @@ not deep reasoning.
 
 **Mission**: Transform a feature request into approved planning artifacts.
 
-**Entry state**: `Draft`
-**Exit state**: `Plan Review`
+**Entry state**: `Triage`
+**Working indicator**: `Triage` + `planning` label
+**Exit state**: `In Review` + `plan` label
 
 **Responsibilities**:
 
-1. Confirm the issue has a defined objective. If not, move to `Blocked`.
-2. Move the issue to `Planning`.
+1. Confirm the issue has a defined objective. If not, move to `Blocked (backlog)`.
+2. Add the `planning` label to the issue.
 3. Classify the change type: feature, bug fix, refactor, dependency update, or
    architecture/platform.
 4. Invoke the Explorer when technical unknowns must be resolved before planning
@@ -182,7 +186,7 @@ not deep reasoning.
 9. Run `/speckit.analyze` to verify cross-artifact consistency. Block on
    failures.
 10. Open a plan PR containing all planning artifacts.
-11. Move the issue to `Plan Review`.
+11. Move the issue to `In Review`, add the `plan` label, and remove the `planning` label.
 
 **Plan PR title format**: `plan: [Feature Name] planning artifacts`
 
@@ -202,7 +206,8 @@ specs/<###-feature-name>/
 ADRs produced during planning land in `docs/adr/`.
 
 **Failure behavior**: On unresolvable ambiguity, document the question in
-Linear, move to `Blocked`, and surface for human resolution. Do not guess.
+Linear, move to `Blocked (backlog)`, and surface for human resolution. Do not
+guess.
 
 **Model**: High reasoning effort. Planning quality determines all downstream
 delivery quality.
@@ -430,31 +435,44 @@ linked in the relevant Linear issue.
 
 ## Linear State Machine
 
-Canonical nine-state model. State names must match exactly.
+State and label model. State names must match exactly.
 
 | State | Phase | Owner | Meaning | Exit Condition |
 | --- | --- | --- | --- | --- |
-| `Draft` | Planning | Architect | Feature created; Architect not yet assigned | Architect assigned; objective defined |
-| `Planning` | Planning | Architect | Architect producing planning artifacts | Plan PR opened; `/speckit.analyze` passes |
-| `Plan Review` | Planning | Human | Plan PR open; awaiting human approval | Plan PR merged |
+| `Triage` | Planning | Architect | Feature created; Architect not yet assigned OR Architect actively planning (+ `planning` label) | Architect assigned; objective defined |
 | `Backlog` | Scheduling | Coordinator | Plan accepted; Coordinator active | Per-task issues created; dependency-free issues set to `Selected` |
 | `Selected` | Implementation | Engineer | Task ready; dependencies satisfied | Engineer begins work |
 | `In Progress` | Implementation | Engineer | Engineer actively implementing | PR submitted or blocker found |
-| `Blocked` | Any | Assignee | Work halted; blocker documented | Blocker resolved; return to prior state |
-| `In Review` | Review | Technical Lead | Graphite stack published; Technical Lead reviewing | Review complete |
+| `Blocked (backlog)` | Planning | Architect | Architect blocked during planning phase; blocker documented | Blocker resolved; return to `Triage + planning` |
+| `Blocked` | Execution | Assignee | Work halted during execution phase; blocker documented | Blocker resolved; return to prior state |
+| `In Review` | Review | Technical Lead / Human | Graphite stack published (Technical Lead reviewing) OR Plan PR open awaiting human approval (+ `plan` label) | Review complete |
 | `Done` | Complete | Director | PR merged; evidence attached; rollup confirmed | None |
 
-`Blocked` may be entered from any active state. On resolution, the issue
-returns to the state it held before entering `Blocked`. A task may never move
-from `Blocked` directly to `Done`.
+### State Labels
+
+Labels that indicate sub-state within a Linear state. These are distinct from type labels (`feature`, `bug`, etc.).
+
+| Label | Applied to State | Set by | Cleared by | Meaning |
+| --- | --- | --- | --- | --- |
+| `planning` | `Triage` | Architect (at T-1) | Architect (at T-2) | Architect is actively producing planning artifacts |
+| `plan` | `In Review` | Architect (at T-2) | Human (at T-3) | Plan PR is open; awaiting human plan approval |
+
+`Blocked (backlog)` is the planning-phase blocker state (Architect blocked while
+`Triage + planning`). On resolution, the issue returns to `Triage + planning`.
+
+`Blocked` is the execution-phase blocker state (any agent blocked during
+`Selected`, `In Progress`, or `In Review`). On resolution, the issue returns to
+the state it held before entering `Blocked`.
+
+A task may never move from either blocked state directly to `Done`.
 
 **Gate rules**:
 
 | Gate | Transition | Required Condition |
 | --- | --- | --- |
-| T-1 | `Draft` → `Planning` | Architect assigned; objective defined |
-| T-2 | `Planning` → `Plan Review` | `spec.md`, `plan.md`, `tasks.md` exist; `/speckit.analyze` passes |
-| T-3 | `Plan Review` → `Backlog` | Plan PR approved and merged by human |
+| T-1 | `Triage` → `Triage` (+ `planning` label) | Architect assigned; objective defined |
+| T-2 | `Triage + planning` → `In Review + plan` | `spec.md`, `plan.md`, `tasks.md` exist; `/speckit.analyze` passes; plan PR opened |
+| T-3 | `In Review + plan` → `Backlog` | Human approves and merges plan PR (human action required) |
 | T-4 | `Backlog` → `Selected` | All dependency tasks are `Done` |
 | T-5 | `Selected` → `In Progress` | Ticket lock acquired; worktree created; stack initialized |
 | T-6 | `In Progress` → `Blocked` | Blocker documented with owner, condition, date |
@@ -588,7 +606,7 @@ tasks do.
 
 | # | Gap | Resolution |
 | --- | --- | --- |
-| 1 | State names do not match canonical states in tracking-process.md | Canonical nine-state model enforced throughout this document |
+| 1 | State names do not match canonical states in tracking-process.md | Canonical state and label model enforced throughout this document |
 | 2 | Director has no defined polling cadence | 5-minute default; webhook alternative flagged as ADR decision |
 | 3 | Director has no failure handling or retry policy | Exponential backoff; move to `Blocked` on exhaustion |
 | 4 | Director concurrency constraints undefined | One active agent per issue; ticket and branch locks enforced |
@@ -684,10 +702,13 @@ cannot be enforced consistently.
 5-minute interval with exponential backoff on Linear API errors. Plan the
 webhook-based alternative as the Phase 4 optimization once polling is validated.
 
-**Configure Linear states**: Confirm the nine canonical states exist in the
-Linear team configuration with exact name matching. Add the four type labels
-(`feature`, `bug`, `refactor`, `chore`). Create the recommended views
-(My In Progress, Blocked, Selected by Priority, In Review, Done This Cycle).
+**Configure Linear states**: Confirm the following states exist in the Linear
+team configuration with exact name matching: `Triage`, `Backlog`, `Selected`,
+`In Progress`, `Blocked`, `Blocked (backlog)`, `In Review`, `Done`. Add the
+four type labels (`feature`, `bug`, `refactor`, `chore`) plus the two state
+labels (`planning`, `plan`) used to indicate planning-phase sub-states. Create
+the recommended views (My In Progress, Blocked, Selected by Priority, In
+Review, Done This Cycle).
 
 ---
 
