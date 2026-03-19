@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# bin/agent-run - Run a one-off agent task in an isolated Docker container
+#
+# Usage:
+#   bin/agent-run [--timeout SECONDS] <command> [args...]
+#   bin/agent-run claude --print "hello"
+#   bin/agent-run codex "list files"
+#   bin/agent-run --timeout 60 claude --print "hello"
+
+WORKSPACE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+IMAGE_NAME="archive-agent-run:latest"
+CONTAINER_PREFIX="agent-run-"
+TIMEOUT=""
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --timeout)
+      TIMEOUT="$2"
+      shift 2
+      ;;
+    --help|-h)
+      cat >&2 <<EOF
+Usage: agent-run [--timeout SECONDS] <command> [args...]
+
+Run a one-off agent task in an isolated Docker container.
+
+Options:
+  --timeout SECONDS   Stop the container after SECONDS (default: no limit)
+  --help, -h          Show this help message
+
+Examples:
+  agent-run claude --print "hello"
+  agent-run codex "list files"
+  agent-run --timeout 60 claude --print "hello"
+  agent-run echo "hello world"
+EOF
+      exit 0
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [[ $# -eq 0 ]]; then
+  echo "error: no command specified" >&2
+  echo "usage: agent-run [--timeout SECONDS] <command> [args...]" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Pre-flight checks
+# ---------------------------------------------------------------------------
+
+# Verify Docker is available
+if ! command -v docker &>/dev/null; then
+  echo "error: docker is not installed or not in PATH" >&2
+  exit 1
+fi
+
+if ! docker info &>/dev/null; then
+  echo "error: docker daemon is not running" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Auto-build image if it does not exist
+# ---------------------------------------------------------------------------
+if ! docker image inspect "${IMAGE_NAME}" &>/dev/null; then
+  echo "Image ${IMAGE_NAME} not found. Building..." >&2
+  docker build -t "${IMAGE_NAME}" "${WORKSPACE_ROOT}/docker/agent-run"
+fi
+
+# ---------------------------------------------------------------------------
+# Construct docker run arguments
+# ---------------------------------------------------------------------------
+DOCKER_ARGS=(
+  --rm
+  --name "${CONTAINER_PREFIX}$(date +%s)-$$"
+  -w /workspace
+  -v "${WORKSPACE_ROOT}:/workspace"
+)
+
+# Timeout support via --stop-timeout
+if [[ -n "${TIMEOUT}" ]]; then
+  DOCKER_ARGS+=(--stop-timeout "${TIMEOUT}")
+fi
+
+# ---------------------------------------------------------------------------
+# T007: Bind mount host config directories (skip missing with warning)
+# ---------------------------------------------------------------------------
+mount_dir() {
+  local src="$1" tgt="$2" opts="${3:-}"
+  if [[ -e "${src}" ]]; then
+    if [[ -n "${opts}" ]]; then
+      DOCKER_ARGS+=(-v "${src}:${tgt}:${opts}")
+    else
+      DOCKER_ARGS+=(-v "${src}:${tgt}")
+    fi
+  else
+    echo "warning: ${src} does not exist on host, skipping mount" >&2
+  fi
+}
+
+mount_dir "${HOME}/.agents"      "/home/agent/.agents"
+mount_dir "${HOME}/.claude"      "/home/agent/.claude"
+mount_dir "${HOME}/.claude.json" "/home/agent/.claude.json"
+mount_dir "${HOME}/.codex"       "/home/agent/.codex"
+mount_dir "${HOME}/.gemini"      "/home/agent/.gemini"
+mount_dir "${HOME}/.pi"          "/home/agent/.pi"
+mount_dir "${HOME}/.aws"         "/home/agent/.aws"
+mount_dir "${HOME}/.ssh"         "/home/agent/.ssh" "ro"
+
+# ---------------------------------------------------------------------------
+# T008: Forward API key environment variables (only when set)
+# ---------------------------------------------------------------------------
+for var in ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY; do
+  if [[ -n "${!var:-}" ]]; then
+    DOCKER_ARGS+=(-e "${var}=${!var}")
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# Run the container and forward exit code (FR-006)
+# ---------------------------------------------------------------------------
+set +e
+docker run "${DOCKER_ARGS[@]}" "${IMAGE_NAME}" "$@"
+exit_code=$?
+set -e
+
+exit ${exit_code}

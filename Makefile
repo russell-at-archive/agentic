@@ -26,6 +26,16 @@ down: ## Stop and remove the devcontainer
 rebuild: ## Force a clean rebuild (stop, remove image, build, start)
 	$(DC) rebuild
 
+##@ Agent Runtime
+
+.PHONY: agent-build
+agent-build: ## Build the agent runtime Docker image
+	docker build -t archive-agent-run:latest docker/agent-run
+
+.PHONY: agent-run
+agent-run: ## Run a one-off agent task (use ARGS="..." to pass arguments)
+	bin/agent-run $(ARGS)
+
 ##@ Utility
 
 .PHONY: help
