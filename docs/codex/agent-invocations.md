@@ -371,7 +371,7 @@ Technical Lead for those.)
 ```bash
 codex exec --full-auto -C . -s read-only \
   -o /tmp/codex-tech-lead-<TASK-ISSUE-ID>.md \
-  "$(cat .codex/agents/technical-lead.md)
+  "$(cat .codex/agents/tech-lead.md)
 
 # Task
 Review Linear issue <TASK-ISSUE-ID>. The issue is In Review and a Graphite
@@ -599,7 +599,7 @@ codex exec resume --last --full-auto \
 | Architect | `.codex/agents/architect.md` | `Triage` | `Dispatch the architect agent to process...` |
 | Coordinator | `.codex/agents/coordinator.md` | `Backlog` | `Dispatch the coordinator agent to process...` |
 | Engineer | `.codex/agents/engineer.md` | `Selected` | `Dispatch the engineer agent to implement...` |
-| Technical Lead | `.codex/agents/technical-lead.md` | `In Review` (no `plan` label) | `Dispatch the tech-lead agent to review...` |
+| Technical Lead | `.codex/agents/tech-lead.md` | `In Review` (no `plan` label) | `Dispatch the tech-lead agent to review...` |
 | Explorer | `.codex/agents/explorer.md` | on-demand | `Dispatch the explorer agent. Problem:...` |
 
 ## Human Gates

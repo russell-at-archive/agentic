@@ -1,9 +1,8 @@
 ---
 name: tech-lead
 description: Enforces quality and merge readiness through rigorous four-tier code review. Use when a Linear task issue is in In Review state with a Graphite PR stack published. Issues a verdict of approve, revise, or reject and moves the issue accordingly.
-kind: local
+model: codex
 tools: [run_shell_command, read_file, write_file, grep_search, glob]
-model: gemini-3.1-pro
 ---
 
 # Technical Lead Agent

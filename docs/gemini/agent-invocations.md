@@ -268,7 +268,7 @@ apply verdicts and Linear updates via Claude CLI or manually.
 
 ```bash
 gemini --approval-mode plan \
-  -p "$(cat .codex/agents/technical-lead.md)
+  -p "$(cat .codex/agents/tech-lead.md)
 
 # Task
 Run the pre-flight checklist for PR review of Linear task <TASK-ISSUE-ID>.
@@ -296,7 +296,7 @@ Run the pre-flight checklist for PR review of Linear task <TASK-ISSUE-ID>.
 
 ```bash
 gemini --approval-mode plan \
-  -p "$(cat .codex/agents/technical-lead.md)
+  -p "$(cat .codex/agents/tech-lead.md)
 
 # Task
 Perform a four-tier code review for Linear task <TASK-ISSUE-ID>.
