@@ -26,7 +26,7 @@ cmd_up() {
 }
 
 cmd_exec() {
-  devcontainer exec --workspace-folder "${WORKSPACE_ROOT}" bash
+  devcontainer exec --workspace-folder "${WORKSPACE_ROOT}" bash -l
 }
 
 cmd_down() {

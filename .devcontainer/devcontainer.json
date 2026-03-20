@@ -7,6 +7,12 @@
   // Mount host config repos for each AI coding tool so credentials
   // and settings are available without being committed to the image.
   "mounts": [
+    // AWS credentials and config
+    {
+      "source": "${localEnv:HOME}/.aws",
+      "target": "/home/vscode/.aws",
+      "type": "bind"
+    },
     // Shared Agents directory
     {
       "source": "${localEnv:HOME}/.agents",
@@ -30,22 +36,45 @@
       "target": "/home/vscode/.codex",
       "type": "bind"
     },
+    // Git config
+    {
+      "source": "${localEnv:HOME}/.gitconfig",
+      "target": "/home/vscode/.gitconfig",
+      "type": "bind"
+    },    
+    {
+      "source": "${localEnv:HOME}/.config/git",
+      "target": "/home/vscode/.config/git",
+      "type": "bind"
+    },    
     // Gemini (Google)
     {
       "source": "${localEnv:HOME}/.gemini",
       "target": "/home/vscode/.gemini",
       "type": "bind"
     },
+    // Graphite config
+    {
+      "source": "${localEnv:HOME}/.config/graphite",
+      "target": "/home/vscode/.config/graphite",
+      "type": "bind"
+    },
+    // Github Cli Config
+    {
+      "source": "${localEnv:HOME}/.config/gh",
+      "target": "/home/vscode/.config/gh",
+      "type": "bind"
+    },
+    // linear Cli Config
+    {
+      "source": "${localEnv:HOME}/.config/linear",
+      "target": "/home/vscode/.config/linear",
+      "type": "bind"
+    },
     // Pi (@mariozechner/pi-coding-agent)
     {
       "source": "${localEnv:HOME}/.pi",
       "target": "/home/vscode/.pi",
-      "type": "bind"
-    },
-    // AWS credentials and config
-    {
-      "source": "${localEnv:HOME}/.aws",
-      "target": "/home/vscode/.aws",
       "type": "bind"
     },
     // SSH keys and config
@@ -62,7 +91,8 @@
   "containerEnv": {
     "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
     "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}",
-    "GEMINI_API_KEY": "${localEnv:GEMINI_API_KEY}"
+    "GEMINI_API_KEY": "${localEnv:GEMINI_API_KEY}",
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}"
   },
 
   "remoteUser": "vscode",
@@ -73,7 +103,7 @@
         "github.copilot",
         "ms-python.python",
         "dbaeumer.vscode-eslint"
-      ]
+      ],
     }
   }
 }

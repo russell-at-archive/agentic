@@ -1,15 +1,28 @@
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
 
-# Install Node.js LTS (required for gemini-cli and codex)
-RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
-    && apt-get install -y nodejs \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Install remaining agentic CLI coding tools via npm
-RUN npm install -g \
-    @google/gemini-cli \
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+      | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/nodesource.gpg] \
+      https://deb.nodesource.com/node_22.x nodistro main" \
+      > /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update \
+    && apt-get install -y \
+    nodejs \
+    gh \
+    jq \
+    yq \
+    && npm install -g \
     @openai/codex \
-    @mariozechner/pi-coding-agent
+    @google/gemini-cli \
+    @withgraphite/graphite-cli \
+    @schpet/linear-cli \
+    @mariozechner/pi-coding-agent \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && npm cache clean --force 
+
+# Welcome banner via MOTD
+COPY motd /etc/motd
+RUN echo '[ -r /etc/motd ] && cat /etc/motd' >> /etc/bash.bashrc
 
 # Install Claude Code as vscode user (native installer writes to ~/.local/bin)
 USER vscode

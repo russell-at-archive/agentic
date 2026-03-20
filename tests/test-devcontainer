@@ -1,0 +1,262 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly SCRIPT_NAME="$(basename "$0")"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+readonly SHA_PROMPT="Print the current working directory and git short SHA, then exit."
+readonly GRAPHITE_PROMPT="Use the installed gt CLI to validate Graphite in this environment without modifying repository state. Return a short plain-text summary with: the gt version, whether ~/.config/graphite is present, and whether a non-interactive Graphite command such as 'gt log --help' works in the current repository. Do not run any command that initializes or changes Graphite repo state. If any check fails, say so plainly."
+readonly GH_PROMPT="Use the installed gh CLI to confirm authentication in this environment. Return a short plain-text summary of the authenticated GitHub account and hosts. If authentication is unavailable, say so plainly."
+readonly LINEAR_PROMPT="Use the installed linear CLI to list accessible Linear projects from this environment. Return only the project names, one per line. If none are accessible, say so plainly."
+
+usage() {
+  cat <<EOF
+Usage: ${SCRIPT_NAME} [test...]
+
+Run validation proofs for the archive-agentic devcontainer.
+
+Tests:
+  build           Build the devcontainer image.
+  up              Start the devcontainer.
+  down            Stop and remove the devcontainer.
+  gt-version      Run gt --version inside the devcontainer.
+  gh-version      Run gh --version inside the devcontainer.
+  linear-help     Run linear --help inside the devcontainer.
+  codex-version   Run codex --version inside the devcontainer.
+  claude-version  Run claude --version inside the devcontainer.
+  gemini-version  Run gemini --version inside the devcontainer.
+  pi-version      Run pi --version inside the devcontainer.
+  codex-sha       Ask Codex to print the working directory and git SHA.
+  claude-sha      Ask Claude to print the working directory and git SHA.
+  codex-graphite  Ask Codex to validate Graphite CLI.
+  claude-graphite Ask Claude to validate Graphite CLI.
+  codex-gh        Ask Codex to verify GitHub CLI auth.
+  claude-gh       Ask Claude to verify GitHub CLI auth.
+  codex-linear    Ask Codex to list accessible Linear projects.
+  claude-linear   Ask Claude to list accessible Linear projects.
+  all             Run every test above in order.
+
+Examples:
+  ${SCRIPT_NAME}
+  ${SCRIPT_NAME} build up gt-version claude-version down
+  ${SCRIPT_NAME} all
+EOF
+}
+
+log() {
+  printf '\n==> %s\n' "${*}"
+}
+
+die() {
+  printf 'ERROR: %s\n' "${*}" >&2
+  exit 1
+}
+
+dc_exec() {
+  devcontainer exec --workspace-folder "${REPO_ROOT}" -- "$@"
+}
+
+run_build() {
+  log "Building devcontainer image"
+  devcontainer build --workspace-folder "${REPO_ROOT}"
+}
+
+run_up() {
+  log "Starting devcontainer"
+  devcontainer up --workspace-folder "${REPO_ROOT}"
+}
+
+run_down() {
+  log "Stopping devcontainer"
+  local container_id=""
+  container_id="$(docker ps -q --filter "label=devcontainer.local_folder=${REPO_ROOT}" | head -1)"
+  if [[ -z "${container_id}" ]]; then
+    log "No running devcontainer found for ${REPO_ROOT}"
+    return 0
+  fi
+  docker stop "${container_id}"
+  docker rm "${container_id}"
+}
+
+run_gt_version() {
+  log "Running direct Graphite CLI proof"
+  dc_exec gt --version
+}
+
+run_gh_version() {
+  log "Running direct GitHub CLI proof"
+  dc_exec gh --version
+}
+
+run_linear_help() {
+  log "Running direct Linear CLI proof"
+  dc_exec linear --help
+}
+
+run_codex_version() {
+  log "Running direct Codex CLI proof"
+  dc_exec codex --version
+}
+
+run_claude_version() {
+  log "Running direct Claude CLI proof"
+  dc_exec claude --version
+}
+
+run_gemini_version() {
+  log "Running direct Gemini CLI proof"
+  dc_exec gemini --version
+}
+
+run_pi_version() {
+  log "Running direct Pi CLI proof"
+  dc_exec pi --version
+}
+
+run_codex_sha() {
+  log "Running Codex working-directory and git-SHA proof"
+  dc_exec codex --dangerously-bypass-approvals-and-sandbox exec -C . "${SHA_PROMPT}"
+}
+
+run_claude_sha() {
+  log "Running Claude working-directory and git-SHA proof"
+  dc_exec claude --dangerously-skip-permissions -p "${SHA_PROMPT}"
+}
+
+run_codex_graphite() {
+  log "Running Codex Graphite CLI proof"
+  dc_exec codex --dangerously-bypass-approvals-and-sandbox exec -C . "${GRAPHITE_PROMPT}"
+}
+
+run_claude_graphite() {
+  log "Running Claude Graphite CLI proof"
+  dc_exec claude --dangerously-skip-permissions -p "${GRAPHITE_PROMPT}"
+}
+
+run_codex_gh() {
+  log "Running Codex GitHub auth proof"
+  dc_exec codex --dangerously-bypass-approvals-and-sandbox exec -C . "${GH_PROMPT}"
+}
+
+run_claude_gh() {
+  log "Running Claude GitHub auth proof"
+  dc_exec claude --dangerously-skip-permissions -p "${GH_PROMPT}"
+}
+
+run_codex_linear() {
+  log "Running Codex Linear project-list proof"
+  dc_exec codex --dangerously-bypass-approvals-and-sandbox exec -C . "${LINEAR_PROMPT}"
+}
+
+run_claude_linear() {
+  log "Running Claude Linear project-list proof"
+  dc_exec claude --dangerously-skip-permissions -p "${LINEAR_PROMPT}"
+}
+
+run_named_test() {
+  local test_name="${1}"
+
+  case "${test_name}" in
+    build)
+      run_build
+      ;;
+    up)
+      run_up
+      ;;
+    down)
+      run_down
+      ;;
+    gt-version)
+      run_gt_version
+      ;;
+    gh-version)
+      run_gh_version
+      ;;
+    linear-help)
+      run_linear_help
+      ;;
+    codex-version)
+      run_codex_version
+      ;;
+    claude-version)
+      run_claude_version
+      ;;
+    gemini-version)
+      run_gemini_version
+      ;;
+    pi-version)
+      run_pi_version
+      ;;
+    codex-sha)
+      run_codex_sha
+      ;;
+    claude-sha)
+      run_claude_sha
+      ;;
+    codex-graphite)
+      run_codex_graphite
+      ;;
+    claude-graphite)
+      run_claude_graphite
+      ;;
+    codex-gh)
+      run_codex_gh
+      ;;
+    claude-gh)
+      run_claude_gh
+      ;;
+    codex-linear)
+      run_codex_linear
+      ;;
+    claude-linear)
+      run_claude_linear
+      ;;
+    all)
+      run_build
+      run_up
+      run_gt_version
+      run_gh_version
+      run_linear_help
+      run_codex_version
+      run_claude_version
+      run_gemini_version
+      run_pi_version
+      run_codex_sha
+      run_claude_sha
+      run_codex_graphite
+      run_claude_graphite
+      run_codex_gh
+      run_claude_gh
+      run_codex_linear
+      run_claude_linear
+      run_down
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      die "Unknown test '${test_name}'. Use --help for available tests."
+      ;;
+  esac
+}
+
+main() {
+  local -a tests
+  local test_name=""
+
+  cd "${REPO_ROOT}"
+
+  if (($# == 0)); then
+    tests=(all)
+  else
+    tests=("$@")
+  fi
+
+  for test_name in "${tests[@]}"; do
+    run_named_test "${test_name}"
+  done
+}
+
+main "$@"
