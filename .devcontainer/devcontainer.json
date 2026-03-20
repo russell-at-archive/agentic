@@ -4,6 +4,12 @@
     "dockerfile": "Dockerfile"
   },
 
+  // Docker-from-Docker: mount the host Docker socket so bin/agent-exec
+  // can invoke containerized agents without a nested daemon.
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+
   // Mount host config repos for each AI coding tool so credentials
   // and settings are available without being committed to the image.
   "mounts": [
@@ -92,7 +98,14 @@
     "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
     "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}",
     "GEMINI_API_KEY": "${localEnv:GEMINI_API_KEY}",
-    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}"
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "LINEAR_API_KEY": "${localEnv:LINEAR_API_KEY}",
+    // HOST_HOME lets bin/agent-exec use host-side paths for Docker bind mounts.
+    // Inside the devcontainer $HOME is /home/vscode, which the host Docker
+    // daemon cannot see. HOST_HOME is the real host home (e.g. /Users/you),
+    // whose subdirectories are already bind-mounted into this container and
+    // are visible to Docker Desktop.
+    "HOST_HOME": "${localEnv:HOME}"
   },
 
   "remoteUser": "vscode",

@@ -6,7 +6,6 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 readonly DEFAULT_IMAGE="${AE_IMAGE:-agent-runner}"
-readonly DEFAULT_REMOTE="${AE_REMOTE:-archive}"
 readonly SHA_PROMPT="Print the current working directory and git short SHA, then exit."
 readonly GRAPHITE_PROMPT="Use the installed gt CLI to validate Graphite in this environment without modifying repository state. Return a short plain-text summary with: the gt version, whether ~/.config/graphite is present, and whether a non-interactive Graphite command such as 'gt log --help' works in the current repository. Do not run any command that initializes or changes Graphite repo state. If any check fails, say so plainly."
 readonly GH_PROMPT="Use the installed gh CLI to confirm authentication in this environment. Return a short plain-text summary of the authenticated GitHub account and hosts. If authentication is unavailable, say so plainly."
@@ -35,13 +34,13 @@ Tests:
 
 Environment:
   AE_IMAGE        Docker image name. Default: ${DEFAULT_IMAGE}
-  AE_REMOTE       Git remote to clone. Default: ${DEFAULT_REMOTE}
+  AE_REMOTE       Git remote to clone (passed through to bin/agent-exec). Default: origin
   GITHUB_TOKEN    Optional GitHub token passed through to the container.
 
 Examples:
   ${SCRIPT_NAME}
   ${SCRIPT_NAME} build gh-help linear-help
-  AE_REMOTE=archive ${SCRIPT_NAME} codex-sha claude-sha
+  ${SCRIPT_NAME} codex-sha claude-sha
 EOF
 }
 
@@ -56,7 +55,7 @@ die() {
 
 run_build() {
   log "Building ${DEFAULT_IMAGE}"
-  docker build -t "${DEFAULT_IMAGE}" docker/agent-runner
+  DOCKER_BUILDKIT=1 docker build -t "${DEFAULT_IMAGE}" docker/agent-runner
 }
 
 run_gt_help() {
@@ -76,60 +75,52 @@ run_linear_help() {
 
 run_codex_sha() {
   log "Running Codex working-directory and git-SHA proof"
-  AE_REMOTE="${DEFAULT_REMOTE}" \
-    AE_PROMPT="${SHA_PROMPT}" \
+  AE_PROMPT="${SHA_PROMPT}" \
     bash scripts/agent-exec
 }
 
 run_claude_sha() {
   log "Running Claude working-directory and git-SHA proof"
   AE_TOOL=claude \
-    AE_REMOTE="${DEFAULT_REMOTE}" \
     AE_PROMPT="${SHA_PROMPT}" \
     bash scripts/agent-exec
 }
 
 run_codex_graphite() {
   log "Running Codex Graphite CLI proof"
-  AE_REMOTE="${DEFAULT_REMOTE}" \
-    AE_PROMPT="${GRAPHITE_PROMPT}" \
+  AE_PROMPT="${GRAPHITE_PROMPT}" \
     bash scripts/agent-exec
 }
 
 run_claude_graphite() {
   log "Running Claude Graphite CLI proof"
   AE_TOOL=claude \
-    AE_REMOTE="${DEFAULT_REMOTE}" \
     AE_PROMPT="${GRAPHITE_PROMPT}" \
     bash scripts/agent-exec
 }
 
 run_codex_gh() {
   log "Running Codex GitHub auth proof"
-  AE_REMOTE="${DEFAULT_REMOTE}" \
-    AE_PROMPT="${GH_PROMPT}" \
+  AE_PROMPT="${GH_PROMPT}" \
     bash scripts/agent-exec
 }
 
 run_claude_gh() {
   log "Running Claude GitHub auth proof"
   AE_TOOL=claude \
-    AE_REMOTE="${DEFAULT_REMOTE}" \
     AE_PROMPT="${GH_PROMPT}" \
     bash scripts/agent-exec
 }
 
 run_codex_linear() {
   log "Running Codex Linear project-list proof"
-  AE_REMOTE="${DEFAULT_REMOTE}" \
-    AE_PROMPT="${LINEAR_PROMPT}" \
+  AE_PROMPT="${LINEAR_PROMPT}" \
     bash scripts/agent-exec
 }
 
 run_claude_linear() {
   log "Running Claude Linear project-list proof"
   AE_TOOL=claude \
-    AE_REMOTE="${DEFAULT_REMOTE}" \
     AE_PROMPT="${LINEAR_PROMPT}" \
     bash scripts/agent-exec
 }

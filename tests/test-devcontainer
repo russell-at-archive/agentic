@@ -10,6 +10,12 @@ readonly GRAPHITE_PROMPT="Use the installed gt CLI to validate Graphite in this 
 readonly GH_PROMPT="Use the installed gh CLI to confirm authentication in this environment. Return a short plain-text summary of the authenticated GitHub account and hosts. If authentication is unavailable, say so plainly."
 readonly LINEAR_PROMPT="Use the installed linear CLI to list accessible Linear projects from this environment. Return only the project names, one per line. If none are accessible, say so plainly."
 
+# If we are running inside a container (/.dockerenv is present) Skip rather than fail
+if [[ -f "/.dockerenv" ]]; then
+  printf 'SKIP: running inside a container without HOST_WORKSPACE — devcontainer tests require a host-visible workspace path\n'
+  exit 0
+fi
+
 usage() {
   cat <<EOF
 Usage: ${SCRIPT_NAME} [test...]
@@ -20,6 +26,7 @@ Tests:
   build           Build the devcontainer image.
   up              Start the devcontainer.
   down            Stop and remove the devcontainer.
+  docker-version  Run docker --version inside the devcontainer.
   gt-version      Run gt --version inside the devcontainer.
   gh-version      Run gh --version inside the devcontainer.
   linear-help     Run linear --help inside the devcontainer.
@@ -77,6 +84,11 @@ run_down() {
   fi
   docker stop "${container_id}"
   docker rm "${container_id}"
+}
+
+run_docker_version() {
+  log "Running direct Docker CLI proof"
+  dc_exec docker --version
 }
 
 run_gt_version() {
@@ -167,6 +179,9 @@ run_named_test() {
     down)
       run_down
       ;;
+    docker-version)
+      run_docker_version
+      ;;
     gt-version)
       run_gt_version
       ;;
@@ -215,6 +230,7 @@ run_named_test() {
     all)
       run_build
       run_up
+      run_docker_version
       run_gt_version
       run_gh_version
       run_linear_help
