@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly SCRIPT_NAME="$(basename "$0")"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+usage() {
+  cat <<EOF
+Usage: ${SCRIPT_NAME} <role> <context>
+
+Invoke a named agent role in an isolated agent-runner container.
+Loads the role system prompt from .codex/agents/<role>.md and combines
+it with the context you supply, then delegates to bin/agent-exec.
+
+Roles:
+  feature-draft    Converts a brief to a Triage Linear issue
+  architect        Produces spec.md, plan.md, tasks.md and opens plan PR
+  coordinator      Creates task issues in Linear from tasks.md
+  engineer         Implements one Selected task using TDD
+  tech-lead        Four-tier code review and verdict
+
+Environment (passed through to bin/agent-exec):
+  AE_REMOTE      Git remote to clone. Default: origin (set in bin/agent-exec)
+  AE_BRANCH      Branch to clone. Default: main
+  AE_TOOL        AI tool to use (codex or claude). Default: codex
+  GITHUB_TOKEN   Optional GitHub token.
+
+Examples:
+  ${SCRIPT_NAME} architect "Process Linear issue INF-42"
+  ${SCRIPT_NAME} engineer "Implement Linear task issue INF-45"
+  AE_TOOL=claude ${SCRIPT_NAME} tech-lead "Review task issue INF-46"
+EOF
+}
+
+log() {
+  printf '\n==> %s\n' "${*}"
+}
+
+die() {
+  printf 'ERROR: %s\n' "${*}" >&2
+  exit 1
+}
+
+strip_frontmatter() {
+  local file="${1}"
+  # Count --- delimiters; skip everything up to and including the second one.
+  # Handles the standard YAML frontmatter block at the top of agent files.
+  awk 'BEGIN{f=0} /^---/{f++;next} f>=2{print}' "${file}"
+}
+
+main() {
+  local role="${1:-}"
+  local context="${2:-}"
+
+  case "${role}" in
+    --help|-h|"")
+      usage
+      exit 0
+      ;;
+  esac
+
+  [[ -n "${context}" ]] || die "Context is required. Usage: ${SCRIPT_NAME} <role> <context>"
+
+  local agent_file="${REPO_ROOT}/.codex/agents/${role}.md"
+  [[ -f "${agent_file}" ]] || die "No agent definition for role '${role}' at ${agent_file}"
+
+  local system_prompt
+  system_prompt="$(strip_frontmatter "${agent_file}")"
+  [[ -n "${system_prompt}" ]] || die "Agent file ${agent_file} has no content after frontmatter."
+
+  local prompt
+  prompt="${system_prompt}
+
+---
+
+${context}"
+
+  log "Dispatching ${role} agent"
+
+  AE_PROMPT="${prompt}" \
+    bash "${REPO_ROOT}/bin/agent-exec"
+}
+
+main "$@"

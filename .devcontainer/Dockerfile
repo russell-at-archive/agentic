@@ -13,12 +13,13 @@ RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
     yq \
     && npm install -g \
     @openai/codex \
+    @devcontainers/cli \
     @google/gemini-cli \
     @withgraphite/graphite-cli \
     @schpet/linear-cli \
     @mariozechner/pi-coding-agent \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
-    && npm cache clean --force 
+    && npm cache clean --force
 
 # Welcome banner via MOTD
 COPY motd /etc/motd

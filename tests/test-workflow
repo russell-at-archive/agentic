@@ -1,0 +1,314 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly SCRIPT_NAME="$(basename "$0")"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Set by main() after canary is resolved
+STATE_FILE=""
+CANARY_DIR=""
+
+# State variables populated by load_state
+FEATURE_ISSUE_ID=""
+PLAN_PR_URL=""
+TASK_ISSUE_IDS=""
+
+usage() {
+  cat <<EOF
+Usage: ${SCRIPT_NAME} <canary> [stage...]
+
+Exercise the full agent delivery workflow using a named canary feature.
+State is persisted in tests/canaries/<canary>/.run-state between runs,
+so individual stages can be re-run or resumed after a failure.
+
+Canaries:
+  add-version-file    Add a VERSION file to the repo root
+
+Stages:
+  feature-draft    Invoke the Feature Draft agent with the canary brief
+  architect        Invoke the Architect agent to produce planning artifacts
+  plan-approval    Human gate: review, approve, and merge the plan PR
+  coordinator      Invoke the Coordinator agent to create task issues
+  engineer         Invoke the Engineer agent for each Selected task
+  tech-lead        Invoke the Tech Lead agent for each In Review task
+  all              Run every stage in order (default)
+
+Environment:
+  AE_REMOTE      Git remote to clone (passed through to bin/agent-exec). Default: origin
+
+Examples:
+  ${SCRIPT_NAME} add-version-file
+  ${SCRIPT_NAME} add-version-file feature-draft architect
+  ${SCRIPT_NAME} add-version-file plan-approval coordinator
+EOF
+}
+
+log() {
+  printf '\n==> %s\n' "${*}"
+}
+
+die() {
+  printf 'ERROR: %s\n' "${*}" >&2
+  exit 1
+}
+
+# ---------------------------------------------------------------------------
+# State management
+# ---------------------------------------------------------------------------
+
+load_state() {
+  if [[ -f "${STATE_FILE}" ]]; then
+    # shellcheck disable=SC1090
+    source "${STATE_FILE}"
+  fi
+}
+
+save_state() {
+  local key="${1}"
+  local value="${2}"
+  local tmp_file="${STATE_FILE}.tmp"
+
+  if [[ -f "${STATE_FILE}" ]]; then
+    grep -v "^${key}=" "${STATE_FILE}" > "${tmp_file}" || true
+    mv "${tmp_file}" "${STATE_FILE}"
+  fi
+
+  printf '%s=%s\n' "${key}" "${value}" >> "${STATE_FILE}"
+}
+
+require_state() {
+  local var="${1}"
+  local hint="${2}"
+  local value=""
+  value="${!var:-}"
+  [[ -n "${value}" ]] || die "Required state '${var}' is not set. ${hint}"
+}
+
+# ---------------------------------------------------------------------------
+# UI helpers
+# ---------------------------------------------------------------------------
+
+wait_for_human() {
+  printf '\n'
+  read -r -p "  Press [Enter] to continue... "
+  printf '\n'
+}
+
+prompt_input() {
+  local label="${1}"
+  local value=""
+  while [[ -z "${value}" ]]; do
+    read -r -p "  ${label}: " value
+  done
+  printf '%s' "${value}"
+}
+
+validate_issue_id() {
+  local id="${1}"
+  [[ "${id}" =~ ^[A-Z]+-[0-9]+$ ]] \
+    || die "Invalid issue ID '${id}'. Expected format: ABC-123"
+}
+
+# ---------------------------------------------------------------------------
+# Stages
+# ---------------------------------------------------------------------------
+
+run_feature_draft() {
+  local brief_file="${CANARY_DIR}/brief.md"
+  [[ -f "${brief_file}" ]] || die "Canary brief not found at ${brief_file}"
+
+  local brief_content
+  brief_content="$(cat "${brief_file}")"
+
+  local context
+  context="The following canary brief has been pre-approved by the human stakeholder. \
+Convert it directly into a Triage Linear issue WITHOUT conducting an intake conversation. \
+The brief is complete — do not ask clarifying questions. Create the issue and stop.
+
+--- BRIEF ---
+${brief_content}"
+
+  log "Running feature-draft agent"
+  bash "${REPO_ROOT}/bin/agent-run" feature-draft "${context}"
+
+  printf '\n  The agent has created a Triage issue in Linear.\n'
+  local issue_id
+  issue_id="$(prompt_input "Enter the Linear issue ID created (e.g., INF-42)")"
+  validate_issue_id "${issue_id}"
+  save_state "FEATURE_ISSUE_ID" "${issue_id}"
+  load_state
+  log "State saved: FEATURE_ISSUE_ID=${issue_id}"
+}
+
+run_architect() {
+  load_state
+  require_state "FEATURE_ISSUE_ID" "Run the feature-draft stage first."
+
+  local context="Process Linear issue ${FEATURE_ISSUE_ID}. \
+The issue is in Triage state and is ready for planning. \
+Produce spec.md, plan.md, and tasks.md, open the plan PR via Graphite, \
+and move the issue to In Review with the plan label."
+
+  log "Running architect agent for ${FEATURE_ISSUE_ID}"
+  bash "${REPO_ROOT}/bin/agent-run" architect "${context}"
+
+  printf '\n  The agent has produced planning artifacts and opened a plan PR.\n'
+  local pr_url
+  pr_url="$(prompt_input "Enter the plan PR URL")"
+  save_state "PLAN_PR_URL" "${pr_url}"
+  load_state
+  log "State saved: PLAN_PR_URL=${pr_url}"
+}
+
+run_plan_approval() {
+  load_state
+  require_state "FEATURE_ISSUE_ID" "Run the architect stage first."
+  require_state "PLAN_PR_URL"      "Run the architect stage first."
+
+  log "Plan approval required — human gate"
+  cat <<EOF
+
+  Review the plan PR, approve and merge it, then move the Linear issue to Backlog.
+
+  Issue:  ${FEATURE_ISSUE_ID}
+  PR:     ${PLAN_PR_URL}
+
+  Steps:
+    1. Open the plan PR and review spec.md, plan.md, and tasks.md
+    2. Approve and merge via Graphite: gt pr review --approve
+    3. Move ${FEATURE_ISSUE_ID} to Backlog in Linear
+
+EOF
+  wait_for_human
+  log "Plan approval confirmed — continuing"
+}
+
+run_coordinator() {
+  load_state
+  require_state "FEATURE_ISSUE_ID" "Run the plan-approval stage first."
+
+  local context="Process feature issue ${FEATURE_ISSUE_ID}. \
+The plan PR has been merged and the issue is in Backlog state. \
+Read tasks.md and create one Linear task issue per task. \
+Set dependency-free tasks to Selected. All others remain in Backlog."
+
+  log "Running coordinator agent for ${FEATURE_ISSUE_ID}"
+  bash "${REPO_ROOT}/bin/agent-run" coordinator "${context}"
+
+  printf '\n  The agent has created task issues in Linear.\n'
+  local task_ids
+  task_ids="$(prompt_input "Enter the task issue IDs, comma-separated (e.g., INF-43,INF-44)")"
+  save_state "TASK_ISSUE_IDS" "${task_ids}"
+  load_state
+  log "State saved: TASK_ISSUE_IDS=${task_ids}"
+}
+
+run_engineer() {
+  load_state
+  require_state "TASK_ISSUE_IDS" "Run the coordinator stage first."
+
+  local -a task_ids
+  IFS=',' read -r -a task_ids <<< "${TASK_ISSUE_IDS}"
+
+  for task_id in "${task_ids[@]}"; do
+    task_id="${task_id// /}"
+    [[ -n "${task_id}" ]] || continue
+    validate_issue_id "${task_id}"
+
+    local context="Implement Linear task issue ${task_id}. \
+The issue is in Selected state. \
+Follow your pre-flight gates, implement the task using TDD, \
+open the PR via Graphite, and move the issue to In Review."
+
+    log "Running engineer agent for ${task_id}"
+    bash "${REPO_ROOT}/bin/agent-run" engineer "${context}"
+
+    log "Engineer complete for ${task_id}"
+  done
+}
+
+run_tech_lead() {
+  load_state
+  require_state "TASK_ISSUE_IDS" "Run the engineer stage first."
+
+  local -a task_ids
+  IFS=',' read -r -a task_ids <<< "${TASK_ISSUE_IDS}"
+
+  for task_id in "${task_ids[@]}"; do
+    task_id="${task_id// /}"
+    [[ -n "${task_id}" ]] || continue
+    validate_issue_id "${task_id}"
+
+    local context="Review the implementation for Linear task issue ${task_id}. \
+The issue is in In Review state with a Graphite PR published. \
+Conduct your four-tier review and issue a verdict of approve, revise, or reject."
+
+    log "Running tech-lead agent for ${task_id}"
+    bash "${REPO_ROOT}/bin/agent-run" tech-lead "${context}"
+
+    log "Tech Lead complete for ${task_id}"
+  done
+}
+
+# ---------------------------------------------------------------------------
+# Dispatch
+# ---------------------------------------------------------------------------
+
+run_named_stage() {
+  local stage="${1}"
+  case "${stage}" in
+    feature-draft)  run_feature_draft  ;;
+    architect)      run_architect      ;;
+    plan-approval)  run_plan_approval  ;;
+    coordinator)    run_coordinator    ;;
+    engineer)       run_engineer       ;;
+    tech-lead)      run_tech_lead      ;;
+    all)
+      run_feature_draft
+      run_architect
+      run_plan_approval
+      run_coordinator
+      run_engineer
+      run_tech_lead
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      die "Unknown stage '${stage}'. Use --help for available stages."
+      ;;
+  esac
+}
+
+main() {
+  local canary="${1:-}"
+
+  if [[ -z "${canary}" ]] || [[ "${canary}" == "--help" ]] || [[ "${canary}" == "-h" ]]; then
+    usage
+    exit 0
+  fi
+
+  CANARY_DIR="${SCRIPT_DIR}/canaries/${canary}"
+  [[ -d "${CANARY_DIR}" ]] || die "Canary '${canary}' not found at ${CANARY_DIR}"
+
+  STATE_FILE="${CANARY_DIR}/.run-state"
+
+  load_state
+  cd "${REPO_ROOT}"
+
+  local -a stages
+  if (($# < 2)); then
+    stages=(all)
+  else
+    shift
+    stages=("$@")
+  fi
+
+  for stage in "${stages[@]}"; do
+    run_named_stage "${stage}"
+  done
+}
+
+main "$@"

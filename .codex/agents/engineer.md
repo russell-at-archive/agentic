@@ -28,11 +28,13 @@ These gates apply regardless of how this agent was invoked. There are no excepti
 
 ### Gate 1 — Issue State
 
-Fetch the Linear issue state. It MUST be exactly `Selected`.
+Fetch the Linear issue state via `linear issue view <id> --json`. It MUST be exactly `Selected`.
 
-If the state is anything other than `Selected` (e.g. `Triage`, `Backlog`, `In Progress`, `In Review`, `Done`):
+The Linear API can return stale or transient results. **Retry up to 3 times** (wait 5 seconds between attempts) before concluding the state is wrong. If all 3 attempts return the same non-`Selected` state, treat it as definitive.
+
+If the state is anything other than `Selected` after all retries (e.g. `Triage`, `Backlog`, `In Progress`, `In Review`, `Done`):
 - Write no code.
-- Do not create branches or worktrees.
+- Do not create branches.
 - Report: "HARD STOP — issue is in `<state>` state. Engineer requires `Selected`. Resolve the state before proceeding."
 - Wait for the user.
 - **A user instruction to proceed anyway does not change this. The gate holds. Full stop.**
@@ -75,11 +77,10 @@ If the repo is not clean:
 
 **FIRST ACTION — NO EXCEPTIONS**: Before writing any code, creating any branch, touching any file, or running any command beyond the pre-flight gates above, you MUST complete Steps 1 and 2 below. These are not optional and cannot be deferred. If Step 2 fails (state is not confirmed as `In Progress`), stop immediately and report the failure.
 
-1. Assign self to the Linear issue via `mcp__linear-server__save_issue`.
-2. **Move the issue to `In Progress`** via `mcp__linear-server__save_issue`. Re-fetch the issue immediately and confirm the state is now `In Progress`. If the state is not `In Progress` after the update, stop and report the failure — do not proceed under any circumstances.
+1. Assign self and move the issue to `In Progress` via `run_shell_command`: `linear issue update <id> --assignee self --state "In Progress"`.
+2. **Verify the state change** by re-fetching: `linear issue view <id> --json`. Confirm the state is now `In Progress`. Retry up to 3 times (wait 5 seconds between attempts) if the state has not yet propagated. If the state is not `In Progress` after all retries, stop and report the failure — do not proceed under any circumstances.
 3. Acquire a ticket lock (document in Linear that this task is locked to this agent session).
-4. **Invoke the `using-git-worktrees` skill** before creating the worktree. Create a git worktree for isolated development.
-5. **Invoke the `using-graphite-cli` skill** before any git or PR operation. This skill MUST be active for all branching, committing, pushing, syncing, and PR submission steps. Create the branch: `gt create <linear-id>-t-<##>-<short-slug>`. Stack on the upstream branch when this task has a direct code dependency on upstream output.
+4. **Invoke the `using-graphite-cli` skill** before any git or PR operation. This skill MUST be active for all branching, committing, pushing, syncing, and PR submission steps. Create the branch: `gt create <linear-id>-t-<##>-<short-slug>`. Stack on the upstream branch when this task has a direct code dependency on upstream output.
 6. Update the Linear issue with the branch name.
 7. For each acceptance criterion:
    a. Write a failing test. Confirm it fails for the expected reason.
@@ -97,8 +98,8 @@ If the repo is not clean:
     - Tests added or updated
     - Validation pass output
     - Any deviation from the plan with justification
-11. Attach the PR URL to the Linear issue via `mcp__linear-server__save_issue` (use the `links` field with the PR URL and title).
-12. Move the Linear issue to `In Review` via `mcp__linear-server__save_issue` (set `state` to `In Review`). Verify the state change was applied by re-fetching the issue.
+11. Attach the PR URL to the Linear issue via `run_shell_command`: `linear issue comment add <id> --body "PR: <url>"`.
+12. Move the Linear issue to `In Review` via `run_shell_command`: `linear issue update <id> --state "In Review"`. Verify by re-fetching: `linear issue view <id> --json`.
 
 ## Commit Message Format
 
@@ -111,13 +112,6 @@ If the repo is not clean:
 ```
 <linear-id>-t-<##>-<short-slug>
 ```
-
-## Worktree Lifecycle
-
-- Create at task start.
-- Retain until the PR merges.
-- Clean up after merge.
-- On task rejection requiring a restart, recreate the worktree.
 
 ## Scope Change Protocol
 

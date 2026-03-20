@@ -33,6 +33,11 @@ Environment:
   AE_DEPTH        Shallow clone depth. Default: 1.
   AE_WORK_BRANCH  Optional branch to create in the cloned repo.
   GITHUB_TOKEN    Optional GitHub token passed through to the container.
+  LINEAR_API_KEY  Linear Personal API key passed through to the container.
+                  Required for Linear MCP auth inside the agent-runner.
+  HOST_HOME       Host home directory used for bind-mount sources. Set
+                  automatically by devcontainer.json when running inside
+                  the devcontainer. Falls back to $HOME.
 
 Examples:
   AE_PROMPT="Summarize the repository" scripts/agent-exec
@@ -93,12 +98,38 @@ map_home_path() {
   esac
 }
 
+# Remap a path from the devcontainer's $HOME to the host HOME so Docker
+# can find it. When running directly on the host HOST_HOME equals HOME
+# and this is a no-op. When running inside the devcontainer HOME is
+# /home/vscode but Docker Desktop only knows about the real host paths.
+to_host_path() {
+  local path="${1}"
+  if [[ -n "${HOST_HOME:-}" ]] && [[ "${HOST_HOME}" != "${HOME}" ]]; then
+    case "${path}" in
+      "${HOME}/"*) printf '%s\n' "${HOST_HOME}${path#"${HOME}"}"; return ;;
+      "${HOME}")   printf '%s\n' "${HOST_HOME}"; return ;;
+    esac
+  fi
+  printf '%s\n' "${path}"
+}
+
 add_mount_if_exists() {
   local source_path="${1}"
   local target_path="${2}"
   local mode="${3:-}"
+  # source_path is a host-side path (may differ from the container-local
+  # view when HOST_HOME is set). Derive the local check path by inverting
+  # the HOST_HOME -> HOME mapping so the existence test uses the path that
+  # actually exists inside this container.
+  local check_path="${source_path}"
+  if [[ -n "${HOST_HOME:-}" ]] && [[ "${HOST_HOME}" != "${HOME}" ]]; then
+    case "${source_path}" in
+      "${HOST_HOME}/"*) check_path="${HOME}${source_path#"${HOST_HOME}"}" ;;
+      "${HOST_HOME}")   check_path="${HOME}" ;;
+    esac
+  fi
 
-  if [[ -e "${source_path}" ]]; then
+  if [[ -e "${check_path}" ]]; then
     if [[ -n "${mode}" ]]; then
       docker_args+=(-v "${source_path}:${target_path}:${mode}")
     else
@@ -144,7 +175,12 @@ main() {
   local local_repo_root=""
   local origin_url=""
   local repo_url=""
-  local home_dir="${HOME}"
+  # When running inside the devcontainer, $HOME is /home/vscode — a path
+  # the host Docker daemon cannot bind-mount. HOST_HOME is injected by
+  # devcontainer.json and points to the real host home directory, whose
+  # subdirectories are already mounted into this container and are visible
+  # to Docker Desktop.
+  local home_dir="${HOST_HOME:-${HOME}}"
   local agent_home="/home/agent"
   local gitconfig_path="${home_dir}/.gitconfig"
   local git_config_dir="${home_dir}/.config/git"
@@ -156,7 +192,7 @@ main() {
   local -a docker_args
   local -a container_args
 
-  docker_args=(run --rm)
+  docker_args=(run --detach)
   tool_args=()
   command=()
   container_args=()
@@ -211,6 +247,19 @@ main() {
   origin_url="$(git -C "${local_repo_root}" remote get-url "${remote_name}" 2>/dev/null)" || die "Could not read the git remote '${remote_name}'."
   repo_url="$(require_ssh_repo_url "${origin_url}")"
 
+  # Mount the Docker socket so the agent can run containers (e.g. for tests).
+  # Pass the socket's GID as a supplementary group so the agent user can
+  # access it without running as root.
+  if [[ -S /var/run/docker.sock ]]; then
+    local sock_gid=""
+    sock_gid=$(stat -c '%g' /var/run/docker.sock 2>/dev/null \
+               || stat -f '%g' /var/run/docker.sock 2>/dev/null \
+               || true)
+    docker_args+=(-v /var/run/docker.sock:/var/run/docker.sock)
+    [[ -n "${sock_gid}" ]] && docker_args+=(--group-add "${sock_gid}")
+  fi
+
+  add_mount_if_exists "${home_dir}/.agents" "${agent_home}/.agents"
   add_mount_if_exists "${home_dir}/.ssh" "${agent_home}/.ssh" "ro"
   add_mount_if_exists "${gitconfig_path}" "${agent_home}/.gitconfig" "ro"
   add_mount_if_exists "${git_config_dir}" "${agent_home}/.config/git" "ro"
@@ -233,6 +282,9 @@ main() {
 
   while IFS= read -r include_path; do
     [[ -n "${include_path}" ]] || continue
+    # git config resolves ~ to $HOME (the devcontainer home when running
+    # inside one). Remap to the host path before handing to Docker.
+    include_path="$(to_host_path "${include_path}")"
     target_path="$(map_home_path "${include_path}" "${home_dir}" "${agent_home}")"
     add_mount_if_exists "${include_path}" "${target_path}" "ro"
   done < <(collect_git_include_paths)
@@ -246,6 +298,10 @@ main() {
     docker_args+=(-e "GITHUB_TOKEN=${GITHUB_TOKEN}")
   fi
 
+  if [[ -n "${LINEAR_API_KEY:-}" ]]; then
+    docker_args+=(-e "LINEAR_API_KEY=${LINEAR_API_KEY}")
+  fi
+
   if [[ -n "${work_branch}" ]]; then
     docker_args+=(-e "WORK_BRANCH=${work_branch}")
   fi
@@ -253,7 +309,20 @@ main() {
   container_args+=("${repo_url}" -- "${command[@]}")
 
   log "Running ${image} against ${repo_url} with ${tool}"
-  exec docker "${docker_args[@]}" "${image}" "${container_args[@]}"
+
+  # Start the container detached, then stream its logs via the Docker log API.
+  # This avoids TTY forwarding entirely — docker logs --follow uses HTTP
+  # chunked transfer over the socket, which works reliably from inside a
+  # devcontainer where nested PTY bridging is unreliable.
+  local container_id=""
+  container_id=$(docker "${docker_args[@]}" "${image}" "${container_args[@]}")
+
+  docker logs --follow "${container_id}"
+
+  local exit_code=0
+  exit_code=$(docker inspect "${container_id}" --format='{{.State.ExitCode}}' 2>/dev/null || echo "1")
+  docker rm "${container_id}" >/dev/null 2>&1 || true
+  exit "${exit_code}"
 }
 
 main "$@"

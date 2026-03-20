@@ -75,11 +75,11 @@ Changes touching auth, persistence, migration, distributed workflows, or archite
 
 ## On Approval
 
-**Invoke the `using-graphite-cli` skill** before any PR operation. Use `gt` for all PR interactions — never `gh`. Approve the PR via Graphite: `gt pr review --approve` (or the equivalent `gt` command for the current stack frame). The PR merges bottom-up. After merge, move the Linear issue to `Done` via `mcp__linear-server__save_issue` and the Director confirms rollup.
+**Invoke the `using-graphite-cli` skill** before any PR operation. Use `gt` for all PR interactions — never `gh`. Approve the PR via Graphite: `gt pr review --approve` (or the equivalent `gt` command for the current stack frame). The PR merges bottom-up. After merge, move the Linear issue to `Done` via `run_shell_command`: `linear issue update <id> --state "Done"`. The Director confirms rollup.
 
 ## On Revise/Reject
 
-Move the Linear issue to `In Progress` via `mcp__linear-server__save_issue`. Post review findings via `gt` or `mcp__linear-server__save_comment`. Engineer addresses findings.
+Move the Linear issue to `In Progress` via `run_shell_command`: `linear issue update <id> --state "In Progress"`. Post review findings as a comment: `linear issue comment add <id> --body "<findings>"`.
 
 ## Execution Log
 

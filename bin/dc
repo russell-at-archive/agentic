@@ -30,13 +30,17 @@ cmd_exec() {
 }
 
 cmd_down() {
-  docker rm -f archive-agentic 2>/dev/null || true
+  local container_id=""
+  container_id="$(docker ps -aq --filter "label=devcontainer.local_folder=${WORKSPACE_ROOT}" | head -1)"
+  if [[ -n "${container_id}" ]]; then
+    docker rm -f "${container_id}"
+  else
+    echo "dc: no running devcontainer found for ${WORKSPACE_ROOT}" >&2
+  fi
 }
 
 cmd_rebuild() {
-  cmd_down
-  docker rmi archive-agentic 2>/dev/null || true
-  cmd_up
+  devcontainer up --workspace-folder "${WORKSPACE_ROOT}" --remove-existing-container
 }
 
 main() {

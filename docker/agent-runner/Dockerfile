@@ -14,6 +14,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       ca-certificates \
       curl \
+      docker.io \
       fd-find \
       gh \
       git \
@@ -29,7 +30,7 @@ RUN apt-get update && \
       yq \
       xz-utils && \
     ln -sf /usr/bin/fdfind /usr/local/bin/fd && \
-    npm install -g "@openai/codex@${CODEX_VERSION}" "@schpet/linear-cli@${LINEAR_VERSION}" "@withgraphite/graphite-cli@${GRAPHITE_VERSION}" && \
+    npm install -g "@openai/codex@${CODEX_VERSION}" "@schpet/linear-cli@${LINEAR_VERSION}" "@withgraphite/graphite-cli@${GRAPHITE_VERSION}" "@devcontainers/cli" && \
     npm cache clean --force && \
     rm -rf /var/lib/apt/lists/*
 
