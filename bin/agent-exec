@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DEFAULT_IMAGE="${AE_IMAGE:-agent-runner}"
+DEFAULT_TOOL="${AE_TOOL:-codex}"
+DEFAULT_REMOTE="${AE_REMOTE:-origin}"
+DEFAULT_BRANCH="${AE_BRANCH:-main}"
+DEFAULT_DEPTH="${AE_DEPTH:-1}"
+DEFAULT_WORK_BRANCH="${AE_WORK_BRANCH:-}"
+
+cleanup() {
+  :
+}
+trap cleanup EXIT INT TERM
+
+usage() {
+  cat <<'EOF'
+Usage:
+  AE_PROMPT="<text>" agent-exec
+  agent-exec -- <tool args...>
+
+Runs the local agent-runner container against the current git repository's
+SSH `origin` remote. The script mounts the host tool, SSH, and Git config
+paths needed by the container and invokes the selected CLI inside the cloned
+repository.
+
+Environment:
+  AE_PROMPT       Convenience prompt for the selected tool.
+  AE_IMAGE        Docker image name. Default: agent-runner.
+  AE_TOOL         Tool to invoke. Default: codex.
+  AE_REMOTE       Git remote to clone. Default: origin.
+  AE_BRANCH       Branch to clone. Default: main.
+  AE_DEPTH        Shallow clone depth. Default: 1.
+  AE_WORK_BRANCH  Optional branch to create in the cloned repo.
+  GITHUB_TOKEN    Optional GitHub token passed through to the container.
+
+Examples:
+  AE_PROMPT="Summarize the repository" scripts/agent-exec
+
+  scripts/agent-exec -- \
+    --dangerously-bypass-approvals-and-sandbox exec -C . "Fix the failing test"
+
+  AE_TOOL=claude AE_PROMPT="Summarize the repository" \
+    scripts/agent-exec
+EOF
+}
+
+log() {
+  printf '%s\n' "${*}"
+}
+
+die() {
+  printf 'ERROR: %s\n' "${*}" >&2
+  exit 1
+}
+
+have_cmd() {
+  command -v "${1}" >/dev/null 2>&1
+}
+
+ensure_git_repo() {
+  git rev-parse --show-toplevel >/dev/null 2>&1 || die "Current directory is not inside a git repository."
+}
+
+require_ssh_repo_url() {
+  local remote_url="${1}"
+
+  case "${remote_url}" in
+    git@*:*|ssh://*)
+      printf '%s\n' "${remote_url}"
+      ;;
+    *)
+      die "The git origin remote must use SSH for this POC. Current origin: ${remote_url}"
+      ;;
+  esac
+}
+
+map_home_path() {
+  local source_path="${1}"
+  local home_dir="${2}"
+  local agent_home="${3}"
+
+  case "${source_path}" in
+    "${home_dir}")
+      printf '%s\n' "${agent_home}"
+      ;;
+    "${home_dir}/"*)
+      printf '%s\n' "${agent_home}${source_path#"${home_dir}"}"
+      ;;
+    *)
+      printf '%s\n' "${source_path}"
+      ;;
+  esac
+}
+
+add_mount_if_exists() {
+  local source_path="${1}"
+  local target_path="${2}"
+  local mode="${3:-}"
+
+  if [[ -e "${source_path}" ]]; then
+    if [[ -n "${mode}" ]]; then
+      docker_args+=(-v "${source_path}:${target_path}:${mode}")
+    else
+      docker_args+=(-v "${source_path}:${target_path}")
+    fi
+  fi
+}
+
+collect_git_include_paths() {
+  local -a include_paths
+  local line=""
+  local value=""
+
+  include_paths=()
+
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] || continue
+    include_paths+=("${line}")
+  done < <(git config --global --path --get-all include.path 2>/dev/null || true)
+
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] || continue
+    value="${line#* }"
+    [[ -n "${value}" ]] || continue
+    include_paths+=("${value}")
+  done < <(git config --global --path --get-regexp '^includeIf\..*\.path$' 2>/dev/null || true)
+
+  if ((${#include_paths[@]} > 0)); then
+    printf '%s\n' "${include_paths[@]}"
+  fi
+}
+
+main() {
+  local prompt="${AE_PROMPT:-}"
+  local tool="${DEFAULT_TOOL}"
+  local remote_name="${DEFAULT_REMOTE}"
+  local branch="${DEFAULT_BRANCH}"
+  local depth="${DEFAULT_DEPTH}"
+  local work_branch="${DEFAULT_WORK_BRANCH}"
+  local image="${DEFAULT_IMAGE}"
+  local -a tool_args
+  local -a command
+  local local_repo_root=""
+  local origin_url=""
+  local repo_url=""
+  local home_dir="${HOME}"
+  local agent_home="/home/agent"
+  local gitconfig_path="${home_dir}/.gitconfig"
+  local git_config_dir="${home_dir}/.config/git"
+  local graphite_config_dir="${home_dir}/.config/graphite"
+  local gh_config_dir="${home_dir}/.config/gh"
+  local linear_config_dir="${home_dir}/.config/linear"
+  local include_path=""
+  local target_path=""
+  local -a docker_args
+  local -a container_args
+
+  docker_args=(run --rm)
+  tool_args=()
+  command=()
+  container_args=()
+
+  while (($# > 0)); do
+    case "$1" in
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      --)
+        shift
+        tool_args=("$@")
+        break
+        ;;
+      *)
+        die "Unknown argument: $1"
+        ;;
+    esac
+  done
+
+  if [[ -n "${prompt}" ]] && ((${#tool_args[@]} > 0)); then
+    die "Use either AE_PROMPT or raw tool args after --, not both."
+  fi
+
+  if [[ -n "${prompt}" ]]; then
+    case "${tool}" in
+      codex)
+        command=(codex --dangerously-bypass-approvals-and-sandbox exec -C . "${prompt}")
+        ;;
+      claude)
+        command=(claude --dangerously-skip-permissions -p "${prompt}")
+        ;;
+      *)
+        die "Unsupported AE_TOOL '${tool}'. Expected codex or claude."
+        ;;
+    esac
+  elif ((${#tool_args[@]} > 0)); then
+    command=("${tool_args[@]}")
+  else
+    die "Provide AE_PROMPT or raw tool args after --."
+  fi
+
+  [[ "${depth}" =~ ^[1-9][0-9]*$ ]] || die "AE_DEPTH must be a positive integer."
+
+  have_cmd git || die "git is required."
+  have_cmd docker || die "docker is required."
+
+  ensure_git_repo
+
+  local_repo_root="$(git rev-parse --show-toplevel)"
+  origin_url="$(git -C "${local_repo_root}" remote get-url "${remote_name}" 2>/dev/null)" || die "Could not read the git remote '${remote_name}'."
+  repo_url="$(require_ssh_repo_url "${origin_url}")"
+
+  add_mount_if_exists "${home_dir}/.ssh" "${agent_home}/.ssh" "ro"
+  add_mount_if_exists "${gitconfig_path}" "${agent_home}/.gitconfig" "ro"
+  add_mount_if_exists "${git_config_dir}" "${agent_home}/.config/git" "ro"
+  add_mount_if_exists "${graphite_config_dir}" "${agent_home}/.config/graphite"
+  add_mount_if_exists "${gh_config_dir}" "${agent_home}/.config/gh"
+  add_mount_if_exists "${linear_config_dir}" "${agent_home}/.config/linear"
+
+  case "${tool}" in
+    codex)
+      add_mount_if_exists "${home_dir}/.codex" "${agent_home}/.codex"
+      ;;
+    claude)
+      add_mount_if_exists "${home_dir}/.claude" "${agent_home}/.claude"
+      add_mount_if_exists "${home_dir}/.claude.json" "${agent_home}/.claude.json"
+      ;;
+    *)
+      die "Unsupported AE_TOOL '${tool}'. Expected codex or claude."
+      ;;
+  esac
+
+  while IFS= read -r include_path; do
+    [[ -n "${include_path}" ]] || continue
+    target_path="$(map_home_path "${include_path}" "${home_dir}" "${agent_home}")"
+    add_mount_if_exists "${include_path}" "${target_path}" "ro"
+  done < <(collect_git_include_paths)
+
+  docker_args+=(
+    -e "BASE_BRANCH=${branch}"
+    -e "CLONE_DEPTH=${depth}"
+  )
+
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    docker_args+=(-e "GITHUB_TOKEN=${GITHUB_TOKEN}")
+  fi
+
+  if [[ -n "${work_branch}" ]]; then
+    docker_args+=(-e "WORK_BRANCH=${work_branch}")
+  fi
+
+  container_args+=("${repo_url}" -- "${command[@]}")
+
+  log "Running ${image} against ${repo_url} with ${tool}"
+  exec docker "${docker_args[@]}" "${image}" "${container_args[@]}"
+}
+
+main "$@"
